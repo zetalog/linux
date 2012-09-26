@@ -152,12 +152,32 @@ static int __init acpi_parse_dbg2(struct acpi_table_header *table)
 	return 0;
 }
 
+static int __init acpi_parse_dbgp(struct acpi_table_header *table)
+{
+	struct acpi_table_dbgp *dbgp;
+	struct acpi_debug_port devinfo;
+
+	dbgp = (struct acpi_table_dbgp *)table;
+	if (!dbgp) {
+		pr_debug("DBGP not present.\n");
+		return -ENODEV;
+	}
+
+	memset(&devinfo, 0, sizeof(struct acpi_debug_port));
+	devinfo.port_type = ACPI_DBG2_SERIAL_PORT;
+	devinfo.port_subtype = dbgp->type;
+	acpi_early_console_start(&devinfo);
+
+	return 0;
+}
+
 int __init acpi_early_console_probe(void)
 {
 	if (!acpi_early_enabled)
 		return -EINVAL;
 
-	if (acpi_table_parse(ACPI_SIG_DBG2, acpi_parse_dbg2) != 0)
+	if (acpi_table_parse(ACPI_SIG_DBG2, acpi_parse_dbg2) != 0 ||
+	    acpi_table_parse(ACPI_SIG_DBGP, acpi_parse_dbgp) != 0)
 		return -ENODEV;
 
 	return 0;
