@@ -329,6 +329,15 @@ static inline void early_console_register(struct console *con, int keep_early)
 	register_console(early_console);
 }
 
+#ifdef CONFIG_EARLY_PRINTK_ACPI
+#include <linux/acpi.h>
+
+int __init __acpi_early_console_start(struct acpi_debug_port *info)
+{
+	return 0;
+}
+#endif
+
 static int __init setup_early_printk(char *buf)
 {
 	int keep;
@@ -370,6 +379,10 @@ static int __init setup_early_printk(char *buf)
 #ifdef CONFIG_EARLY_PRINTK_DBGP
 		if (!strncmp(buf, "dbgp", 4) && !early_dbgp_init(buf + 4))
 			early_console_register(&early_dbgp_console, keep);
+#endif
+#ifdef CONFIG_EARLY_PRINTK_ACPI
+		if (!strncmp(buf, "acpi", 4))
+			acpi_early_console_launch(buf + 4, keep);
 #endif
 #ifdef CONFIG_HVC_XEN
 		if (!strncmp(buf, "xen", 3))

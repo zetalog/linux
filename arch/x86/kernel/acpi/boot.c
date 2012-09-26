@@ -1507,6 +1507,7 @@ void __init acpi_boot_table_init(void)
 		return;
 	}
 
+	acpi_early_console_probe();
 	acpi_table_parse(ACPI_SIG_BOOT, acpi_parse_sbf);
 
 	/*

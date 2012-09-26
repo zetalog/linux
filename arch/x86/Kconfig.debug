@@ -69,6 +69,21 @@ config EARLY_PRINTK_EFI
 	  This is useful for kernel debugging when your machine crashes very
 	  early before the console code is initialized.
 
+config EARLY_PRINTK_ACPI
+	bool "Early printk launcher via ACPI debug port tables"
+	depends on EARLY_PRINTK && ACPI
+	---help---
+	  Write kernel log output directly into the debug ports described
+	  in the ACPI tables known as DBG2.
+
+	  To enable such debugging facilities, you need to enable this
+	  configuration option and append the "earlyprintk=acpi" kernel
+	  parameter through the boot loaders.  Please refer the
+	  "Documentation/kernel-parameters.txt" for details.  Since this
+	  is an early console launcher, you still need to enable actual
+	  early console drivers that are suitable for your platform.
+	  If in doubt, say "N".
+
 config X86_PTDUMP
 	bool "Export kernel pagetable layout to userspace via debugfs"
 	depends on DEBUG_KERNEL

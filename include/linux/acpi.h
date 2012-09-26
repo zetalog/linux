@@ -793,4 +793,26 @@ static inline struct acpi_device *acpi_get_next_child(struct device *dev,
 
 #endif
 
+#ifdef CONFIG_EARLY_PRINTK_ACPI
+struct acpi_debug_port {
+	u8 port_index;
+	u16 port_type;
+	u16 port_subtype;
+	u16 register_count;
+	struct acpi_generic_address *registers;
+	u16 namepath_length;
+	char *namepath;
+	u16 oem_data_length;
+	u8 *oem_data;
+};
+
+bool __init acpi_early_console_keep(struct acpi_debug_port *info);
+int __init acpi_early_console_launch(char *s, int keep);
+int __init acpi_early_console_probe(void);
+/* This interface is arch specific. */
+int __init __acpi_early_console_start(struct acpi_debug_port *info);
+#else
+static inline int acpi_early_console_probe(void) { return 0; }
+#endif
+
 #endif	/*_LINUX_ACPI_H*/
