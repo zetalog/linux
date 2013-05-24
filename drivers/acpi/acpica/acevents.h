@@ -182,6 +182,12 @@ acpi_ev_install_space_handler(struct acpi_namespace_node *node,
 			      acpi_adr_space_handler handler,
 			      acpi_adr_space_setup setup, void *context);
 
+void acpi_ev_get_space_handler(union acpi_operand_object *handler_desc);
+
+void acpi_ev_put_space_handler(union acpi_operand_object *handler_desc);
+
+u32 acpi_ev_space_handler_count(union acpi_operand_object *handler_desc);
+
 /*
  * evregion - Operation region support
  */

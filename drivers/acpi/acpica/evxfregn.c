@@ -234,6 +234,14 @@ acpi_remove_address_space_handler(acpi_handle device,
 
 			*last_obj_ptr = handler_obj->address_space.next;
 
+			/* Wait for handlers to exit */
+
+			while (acpi_ev_space_handler_count(handler_obj) != 0) {
+				(void)acpi_ut_release_mutex(ACPI_MTX_NAMESPACE);
+				acpi_os_sleep((u64)10);
+				(void)acpi_ut_acquire_mutex(ACPI_MTX_NAMESPACE);
+			}
+
 			/* Now we can delete the handler object */
 
 			acpi_ut_remove_reference(handler_obj);

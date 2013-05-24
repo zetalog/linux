@@ -168,6 +168,7 @@ acpi_ev_address_space_dispatch(union acpi_operand_object *region_obj,
 		return_ACPI_STATUS(AE_NOT_EXIST);
 	}
 
+	acpi_ev_get_space_handler(handler_desc);
 	context = handler_desc->address_space.context;
 
 	/*
@@ -188,7 +189,8 @@ acpi_ev_address_space_dispatch(union acpi_operand_object *region_obj,
 				    region_obj,
 				    acpi_ut_get_region_name(region_obj->region.
 							    space_id)));
-			return_ACPI_STATUS(AE_NOT_EXIST);
+			status = AE_NOT_EXIST;
+			goto error_exit;
 		}
 
 		/*
@@ -213,7 +215,7 @@ acpi_ev_address_space_dispatch(union acpi_operand_object *region_obj,
 					acpi_ut_get_region_name(region_obj->
 								region.
 								space_id)));
-			return_ACPI_STATUS(status);
+			goto error_exit;
 		}
 
 		/* Region initialization may have been completed by region_setup */
@@ -309,6 +311,8 @@ acpi_ev_address_space_dispatch(union acpi_operand_object *region_obj,
 		acpi_ex_enter_interpreter();
 	}
 
+error_exit:
+	acpi_ev_put_space_handler(handler_desc);
 	return_ACPI_STATUS(status);
 }
 

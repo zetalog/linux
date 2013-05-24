@@ -306,6 +306,7 @@ struct acpi_object_notify_handler {
 
 struct acpi_object_addr_handler {
 	ACPI_OBJECT_COMMON_HEADER u8 space_id;
+	u16 invocation_count;
 	u8 handler_flags;
 	acpi_adr_space_handler handler;
 	struct acpi_namespace_node *node;	/* Parent device */

@@ -526,6 +526,7 @@ acpi_ev_install_space_handler(struct acpi_namespace_node *node,
 	handler_obj->address_space.space_id = (u8)space_id;
 	handler_obj->address_space.handler_flags = flags;
 	handler_obj->address_space.region_list = NULL;
+	handler_obj->address_space.invocation_count = 0;
 	handler_obj->address_space.node = node;
 	handler_obj->address_space.handler = handler;
 	handler_obj->address_space.context = context;
@@ -558,4 +559,92 @@ acpi_ev_install_space_handler(struct acpi_namespace_node *node,
 
 unlock_and_exit:
 	return_ACPI_STATUS(status);
+}
+
+/*******************************************************************************
+ *
+ * FUNCTION:    acpi_ev_get_space_handler
+ *
+ * PARAMETERS:  handler_desc     - Address space object
+ *                                 (ACPI_TYPE_LOCAL_ADDRESS_HANDLER)
+ *
+ * RETURN:      None.
+ *
+ * DESCRIPTION: Acquire an reference of the given address space handler object.
+ *
+ ******************************************************************************/
+
+void acpi_ev_get_space_handler(union acpi_operand_object *handler_desc)
+{
+	acpi_cpu_flags lock_flags;
+
+	ACPI_FUNCTION_TRACE_PTR(acpi_ev_get_space_handler, handler_desc);
+
+	if (handler_desc) {
+		lock_flags =
+		    acpi_os_acquire_lock(acpi_gbl_reference_count_lock);
+		handler_desc->address_space.invocation_count++;
+		acpi_os_release_lock(acpi_gbl_reference_count_lock, lock_flags);
+	}
+
+	return_VOID;
+}
+
+/*******************************************************************************
+ *
+ * FUNCTION:    acpi_ev_put_space_handler
+ *
+ * PARAMETERS:  handler_desc     - Address space object
+ *                                 (ACPI_TYPE_LOCAL_ADDRESS_HANDLER)
+ *
+ * RETURN:      None.
+ *
+ * DESCRIPTION: Release an reference of the given address space handler object.
+ *
+ ******************************************************************************/
+
+void acpi_ev_put_space_handler(union acpi_operand_object *handler_desc)
+{
+	acpi_cpu_flags lock_flags;
+
+	ACPI_FUNCTION_TRACE_PTR(acpi_ev_put_space_handler, handler_desc);
+
+	if (handler_desc) {
+		lock_flags =
+		    acpi_os_acquire_lock(acpi_gbl_reference_count_lock);
+		handler_desc->address_space.invocation_count--;
+		acpi_os_release_lock(acpi_gbl_reference_count_lock, lock_flags);
+	}
+
+	return_VOID;
+}
+
+/*******************************************************************************
+ *
+ * FUNCTION:    acpi_ev_space_handler_count
+ *
+ * PARAMETERS:  handler_desc     - Address space object
+ *                                 (ACPI_TYPE_LOCAL_ADDRESS_HANDLER)
+ *
+ * RETURN:      Invocation count of the handler.
+ *
+ * DESCRIPTION: Get the reference of the given address space handler object.
+ *
+ ******************************************************************************/
+
+u32 acpi_ev_space_handler_count(union acpi_operand_object *handler_desc)
+{
+	u32 count = 0;
+	acpi_cpu_flags lock_flags;
+
+	ACPI_FUNCTION_TRACE_PTR(acpi_ev_space_handler_count, handler_desc);
+
+	if (handler_desc) {
+		lock_flags =
+		    acpi_os_acquire_lock(acpi_gbl_reference_count_lock);
+		count = handler_desc->address_space.invocation_count;
+		acpi_os_release_lock(acpi_gbl_reference_count_lock, lock_flags);
+	}
+
+	return_UINT32(count);
 }
