@@ -155,8 +155,8 @@ static int EC_FLAGS_SKIP_DSDT_SCAN; /* Not all BIOS survive early DSDT scan */
 static int EC_FLAGS_CLEAR_ON_RESUME; /* Needs acpi_ec_clear() on boot/resume */
 
 /* --------------------------------------------------------------------------
-                             Device Flags
-   -------------------------------------------------------------------------- */
+ *                           Device Flags
+ * -------------------------------------------------------------------------- */
 
 static bool acpi_ec_started(struct acpi_ec *ec)
 {
@@ -183,8 +183,8 @@ static bool acpi_ec_has_gpe_storm(struct acpi_ec *ec)
 }
 
 /* --------------------------------------------------------------------------
-                             GPE Enhancement
-   -------------------------------------------------------------------------- */
+ *                           GPE Enhancement
+ * -------------------------------------------------------------------------- */
 
 static void acpi_ec_set_storm(struct acpi_ec *ec, u8 flag)
 {
@@ -337,12 +337,13 @@ int acpi_ec_wait_for_event(struct acpi_ec *ec)
 }
 
 /* --------------------------------------------------------------------------
-                             Transaction Management
-   -------------------------------------------------------------------------- */
+ *                           Transaction Management
+ * -------------------------------------------------------------------------- */
 
 static inline u8 acpi_ec_read_status(struct acpi_ec *ec)
 {
 	u8 x = inb(ec->command_addr);
+
 	pr_debug("EC_SC(R) = 0x%2.2x "
 		 "SCI_EVT=%d BURST=%d CMD=%d IBF=%d OBF=%d\n",
 		 x,
@@ -357,6 +358,7 @@ static inline u8 acpi_ec_read_status(struct acpi_ec *ec)
 static inline u8 acpi_ec_read_data(struct acpi_ec *ec)
 {
 	u8 x = inb(ec->data_addr);
+
 	pr_debug("EC_DATA(R) = 0x%2.2x\n", x);
 	return x;
 }
@@ -398,6 +400,7 @@ static int ec_transaction_completed(struct acpi_ec *ec)
 {
 	unsigned long flags;
 	int ret = 0;
+
 	spin_lock_irqsave(&ec->lock, flags);
 	if (ec->curr && (ec->curr->flags & ACPI_EC_COMMAND_COMPLETE))
 		ret = 1;
@@ -495,6 +498,7 @@ static int ec_poll(struct acpi_ec *ec)
 {
 	unsigned long flags;
 	int repeat = 5; /* number of command restarts */
+
 	while (repeat--) {
 		unsigned long delay = jiffies +
 			msecs_to_jiffies(ec_delay);
@@ -528,6 +532,7 @@ static int acpi_ec_transaction_unlocked(struct acpi_ec *ec,
 	unsigned long tmp;
 	int ret = 0;
 	bool is_query = !!(t->command == ACPI_EC_COMMAND_QUERY);
+
 	if (EC_FLAGS_MSI)
 		udelay(ACPI_EC_MSI_UDELAY);
 	/* start transaction */
@@ -563,6 +568,7 @@ static int acpi_ec_transaction(struct acpi_ec *ec, struct transaction *t)
 {
 	int status;
 	u32 glk;
+
 	if (!ec || (!t) || (t->wlen && !t->wdata) || (t->rlen && !t->rdata))
 		return -EINVAL;
 	if (t->rdata)
@@ -579,7 +585,7 @@ static int acpi_ec_transaction(struct acpi_ec *ec, struct transaction *t)
 	status = acpi_ec_transaction_unlocked(ec, t);
 
 	if (acpi_ec_has_gpe_storm(ec))
-		msleep(1);
+		msleep(20);
 	if (ec->global_lock)
 		acpi_release_global_lock(glk);
 unlock:
@@ -607,7 +613,7 @@ static int acpi_ec_burst_disable(struct acpi_ec *ec)
 				acpi_ec_transaction(ec, &t) : 0;
 }
 
-static int acpi_ec_read(struct acpi_ec *ec, u8 address, u8 * data)
+static int acpi_ec_read(struct acpi_ec *ec, u8 address, u8 *data)
 {
 	int result;
 	u8 d;
@@ -643,10 +649,9 @@ int ec_read(u8 addr, u8 *val)
 	if (!err) {
 		*val = temp_data;
 		return 0;
-	} else
-		return err;
+	}
+	return err;
 }
-
 EXPORT_SYMBOL(ec_read);
 
 int ec_write(u8 addr, u8 val)
@@ -660,22 +665,21 @@ int ec_write(u8 addr, u8 val)
 
 	return err;
 }
-
 EXPORT_SYMBOL(ec_write);
 
 int ec_transaction(u8 command,
-		   const u8 * wdata, unsigned wdata_len,
-		   u8 * rdata, unsigned rdata_len)
+		   const u8 *wdata, unsigned wdata_len,
+		   u8 *rdata, unsigned rdata_len)
 {
 	struct transaction t = {.command = command,
 				.wdata = wdata, .rdata = rdata,
 				.wlen = wdata_len, .rlen = rdata_len};
+
 	if (!first_ec)
 		return -ENODEV;
 
 	return acpi_ec_transaction(first_ec, &t);
 }
-
 EXPORT_SYMBOL(ec_transaction);
 
 /* Get the handle to the EC device */
@@ -685,7 +689,6 @@ acpi_handle ec_get_handle(void)
 		return NULL;
 	return first_ec->handle;
 }
-
 EXPORT_SYMBOL(ec_get_handle);
 
 /*
@@ -802,13 +805,14 @@ void acpi_ec_unblock_transactions_early(void)
 		acpi_ec_start(first_ec);
 }
 
-static int acpi_ec_query_unlocked(struct acpi_ec *ec, u8 * data)
+static int acpi_ec_query_unlocked(struct acpi_ec *ec, u8 *data)
 {
 	int result;
 	u8 d;
 	struct transaction t = {.command = ACPI_EC_COMMAND_QUERY,
 				.wdata = NULL, .rdata = &d,
 				.wlen = 0, .rlen = 1};
+
 	if (!ec || !data)
 		return -EINVAL;
 	/*
@@ -826,8 +830,9 @@ static int acpi_ec_query_unlocked(struct acpi_ec *ec, u8 * data)
 }
 
 /* --------------------------------------------------------------------------
-                                Event Management
-   -------------------------------------------------------------------------- */
+ *                              Event Management
+ * -------------------------------------------------------------------------- */
+
 static struct acpi_ec_query_handler *
 acpi_ec_get_query_handler(struct acpi_ec_query_handler *handler)
 {
@@ -840,6 +845,7 @@ static void acpi_ec_query_handler_release(struct kref *kref)
 {
 	struct acpi_ec_query_handler *handler =
 		container_of(kref, struct acpi_ec_query_handler, kref);
+
 	kfree(handler);
 }
 
@@ -854,6 +860,7 @@ int acpi_ec_add_query_handler(struct acpi_ec *ec, u8 query_bit,
 {
 	struct acpi_ec_query_handler *handler =
 	    kzalloc(sizeof(struct acpi_ec_query_handler), GFP_KERNEL);
+
 	if (!handler)
 		return -ENOMEM;
 
@@ -867,13 +874,13 @@ int acpi_ec_add_query_handler(struct acpi_ec *ec, u8 query_bit,
 	mutex_unlock(&ec->mutex);
 	return 0;
 }
-
 EXPORT_SYMBOL_GPL(acpi_ec_add_query_handler);
 
 void acpi_ec_remove_query_handler(struct acpi_ec *ec, u8 query_bit)
 {
 	struct acpi_ec_query_handler *handler, *tmp;
 	LIST_HEAD(free_list);
+
 	mutex_lock(&ec->mutex);
 	list_for_each_entry_safe(handler, tmp, &ec->list, node) {
 		if (query_bit == handler->query_bit) {
@@ -885,12 +892,12 @@ void acpi_ec_remove_query_handler(struct acpi_ec *ec, u8 query_bit)
 	list_for_each_entry(handler, &free_list, node)
 		acpi_ec_put_query_handler(handler);
 }
-
 EXPORT_SYMBOL_GPL(acpi_ec_remove_query_handler);
 
 static void acpi_ec_run(void *cxt)
 {
 	struct acpi_ec_query_handler *handler = cxt;
+
 	if (!handler)
 		return;
 	pr_debug("##### Query(0x%02x) started #####\n", handler->query_bit);
@@ -1001,8 +1008,8 @@ static void ec_delete_event_poller(struct acpi_ec *ec)
 }
 
 /* --------------------------------------------------------------------------
-                             Address Space Management
-   -------------------------------------------------------------------------- */
+ *                           Address Space Management
+ * -------------------------------------------------------------------------- */
 
 static acpi_status
 acpi_ec_space_handler(u32 function, acpi_physical_address address,
@@ -1033,27 +1040,26 @@ acpi_ec_space_handler(u32 function, acpi_physical_address address,
 	switch (result) {
 	case -EINVAL:
 		return AE_BAD_PARAMETER;
-		break;
 	case -ENODEV:
 		return AE_NOT_FOUND;
-		break;
 	case -ETIME:
 		return AE_TIME;
-		break;
 	default:
 		return AE_OK;
 	}
 }
 
 /* --------------------------------------------------------------------------
-                               Driver Interface
-   -------------------------------------------------------------------------- */
+ *                             Driver Interface
+ * -------------------------------------------------------------------------- */
+
 static acpi_status
 ec_parse_io_ports(struct acpi_resource *resource, void *context);
 
 static struct acpi_ec *make_acpi_ec(void)
 {
 	struct acpi_ec *ec = kzalloc(sizeof(struct acpi_ec), GFP_KERNEL);
+
 	if (!ec)
 		return NULL;
 	mutex_init(&ec->mutex);
@@ -1075,9 +1081,8 @@ acpi_ec_register_query_methods(acpi_handle handle, u32 level,
 
 	status = acpi_get_name(handle, ACPI_SINGLE_NAME, &buffer);
 
-	if (ACPI_SUCCESS(status) && sscanf(node_name, "_Q%x", &value) == 1) {
+	if (ACPI_SUCCESS(status) && sscanf(node_name, "_Q%x", &value) == 1)
 		acpi_ec_add_query_handler(ec, value, handle, NULL, NULL);
-	}
 	return AE_OK;
 }
 
@@ -1086,7 +1091,6 @@ ec_parse_device(acpi_handle handle, u32 Level, void *context, void **retval)
 {
 	acpi_status status;
 	unsigned long long tmp = 0;
-
 	struct acpi_ec *ec = context;
 
 	/* clear addr values, ec_parse_io_ports depend on it */
@@ -1115,6 +1119,7 @@ static int ec_install_handlers(struct acpi_ec *ec)
 {
 	int ret;
 	acpi_status status;
+
 	if (test_bit(EC_FLAGS_HANDLERS_INSTALLED, &ec->flags))
 		return 0;
 	ret = ec_create_event_poller(ec);
@@ -1416,7 +1421,8 @@ int __init acpi_ec_ecdt_probe(void)
 		boot_ec->data_addr = ecdt_ptr->data.address;
 		boot_ec->gpe = ecdt_ptr->gpe;
 		boot_ec->handle = ACPI_ROOT_OBJECT;
-		acpi_get_handle(ACPI_ROOT_OBJECT, ecdt_ptr->id, &boot_ec->handle);
+		acpi_get_handle(ACPI_ROOT_OBJECT, ecdt_ptr->id,
+				&boot_ec->handle);
 		/* Don't trust ECDT, which comes from ASUSTek */
 		if (!EC_FLAGS_VALIDATE_ECDT)
 			goto install;
@@ -1551,6 +1557,5 @@ static void __exit acpi_ec_exit(void)
 {
 
 	acpi_bus_unregister_driver(&acpi_ec_driver);
-	return;
 }
 #endif	/* 0 */
