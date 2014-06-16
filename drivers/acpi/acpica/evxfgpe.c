@@ -490,8 +490,8 @@ ACPI_EXPORT_SYMBOL(acpi_clear_gpe)
  *
  * FUNCTION:    acpi_get_gpe_status
  *
- * PARAMETERS:  gpe_device      - Parent GPE Device. NULL for GPE0/GPE1
- *              gpe_number      - GPE level within the GPE block
+ * PARAMETERS:  gpe_device          - Parent GPE Device. NULL for GPE0/GPE1
+ *              gpe_number          - GPE level within the GPE block
  *              event_status        - Where the current status of the event
  *                                    will be returned
  *
