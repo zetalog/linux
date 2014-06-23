@@ -127,8 +127,10 @@ void acpi_tb_check_dsdt_header(void)
 
 	/* Compare original length and checksum to current values */
 
-	if (acpi_gbl_original_dsdt_header.length != acpi_gbl_DSDT->length ||
-	    acpi_gbl_original_dsdt_header.checksum != acpi_gbl_DSDT->checksum) {
+	if ((ACPI_DECODE32(&acpi_gbl_original_dsdt_header.length) !=
+	     ACPI_DECODE32(&acpi_gbl_DSDT->length)) ||
+	    (ACPI_DECODE8(&acpi_gbl_original_dsdt_header.checksum) !=
+	     ACPI_DECODE8(&acpi_gbl_DSDT->checksum))) {
 		ACPI_BIOS_ERROR((AE_INFO,
 				 "The DSDT has been corrupted or replaced - "
 				 "old, new headers below"));
@@ -141,9 +143,10 @@ void acpi_tb_check_dsdt_header(void)
 
 		/* Disable further error messages */
 
-		acpi_gbl_original_dsdt_header.length = acpi_gbl_DSDT->length;
-		acpi_gbl_original_dsdt_header.checksum =
-		    acpi_gbl_DSDT->checksum;
+		ACPI_ENCODE32(&acpi_gbl_original_dsdt_header.length,
+			      ACPI_DECODE32(&acpi_gbl_DSDT->length));
+		ACPI_ENCODE8(&acpi_gbl_original_dsdt_header.checksum,
+			     ACPI_DECODE8(&acpi_gbl_DSDT->checksum));
 	}
 }
 
@@ -186,7 +189,7 @@ struct acpi_table_header *acpi_tb_copy_dsdt(u32 table_index)
 
 	ACPI_INFO((AE_INFO,
 		   "Forced DSDT copy: length 0x%05X copied locally, original unmapped",
-		   new_table->length));
+		   ACPI_DECODE32(&new_table->length)));
 
 	return (new_table);
 }
@@ -222,15 +225,14 @@ acpi_tb_get_root_table_entry(u8 *table_entry, u32 table_entry_size)
 		 * 32-bit platform, RSDT: Return 32-bit table entry
 		 * 64-bit platform, RSDT: Expand 32-bit to 64-bit and return
 		 */
-		return ((acpi_physical_address)
-			(*ACPI_CAST_PTR(u32, table_entry)));
+		return ((acpi_physical_address) (ACPI_DECODE32(table_entry)));
 	} else {
 		/*
 		 * 32-bit platform, XSDT: Truncate 64-bit to 32-bit and return
 		 * 64-bit platform, XSDT: Move (unaligned) 64-bit to local,
 		 *  return 64-bit
 		 */
-		ACPI_MOVE_64_TO_64(&address64, table_entry);
+		address64 = ACPI_DECODE64(table_entry);
 
 #if ACPI_MACHINE_WIDTH == 32
 		if (address64 > ACPI_UINT32_MAX) {
@@ -292,19 +294,22 @@ acpi_status __init acpi_tb_parse_root_table(acpi_physical_address rsdp_address)
 
 	/* Use XSDT if present and not overridden. Otherwise, use RSDT */
 
-	if ((rsdp->revision > 1) &&
-	    rsdp->xsdt_physical_address && !acpi_gbl_do_not_use_xsdt) {
+	if ((ACPI_DECODE8(&rsdp->revision) > 1) &&
+	    ACPI_DECODE64(&rsdp->xsdt_physical_address) &&
+	    !acpi_gbl_do_not_use_xsdt) {
 		/*
 		 * RSDP contains an XSDT (64-bit physical addresses). We must use
 		 * the XSDT if the revision is > 1 and the XSDT pointer is present,
 		 * as per the ACPI specification.
 		 */
-		address = (acpi_physical_address) rsdp->xsdt_physical_address;
+		address = (acpi_physical_address)
+		    ACPI_DECODE64(&rsdp->xsdt_physical_address);
 		table_entry_size = ACPI_XSDT_ENTRY_SIZE;
 	} else {
 		/* Root table is an RSDT (32-bit physical addresses) */
 
-		address = (acpi_physical_address) rsdp->rsdt_physical_address;
+		address = (acpi_physical_address)
+		    ACPI_DECODE32(&rsdp->rsdt_physical_address);
 		table_entry_size = ACPI_RSDT_ENTRY_SIZE;
 	}
 
@@ -327,7 +332,7 @@ acpi_status __init acpi_tb_parse_root_table(acpi_physical_address rsdp_address)
 	 * Validate length of the table, and map entire table.
 	 * Minimum length table must contain at least one entry.
 	 */
-	length = table->length;
+	length = ACPI_DECODE32(&table->length);
 	acpi_os_unmap_memory(table, sizeof(struct acpi_table_header));
 
 	if (length < (sizeof(struct acpi_table_header) + table_entry_size)) {
@@ -352,7 +357,8 @@ acpi_status __init acpi_tb_parse_root_table(acpi_physical_address rsdp_address)
 
 	/* Get the number of entries and pointer to first entry */
 
-	table_count = (u32)((table->length - sizeof(struct acpi_table_header)) /
+	table_count = (u32)((ACPI_DECODE32(&table->length) -
+			     sizeof(struct acpi_table_header)) /
 			    table_entry_size);
 	table_entry = ACPI_ADD_PTR(u8, table, sizeof(struct acpi_table_header));
 

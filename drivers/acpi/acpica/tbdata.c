@@ -75,7 +75,7 @@ acpi_tb_init_table_descriptor(struct acpi_table_desc *table_desc,
 	 */
 	ACPI_MEMSET(table_desc, 0, sizeof(struct acpi_table_desc));
 	table_desc->address = address;
-	table_desc->length = table->length;
+	table_desc->length = ACPI_DECODE32(&table->length);
 	table_desc->flags = flags;
 	ACPI_MOVE_32_TO_32(table_desc->signature.ascii, table->signature);
 }

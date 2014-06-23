@@ -86,9 +86,10 @@ acpi_tb_compare_tables(struct acpi_table_desc *table_desc, u32 table_index)
 	 * Check for a table match on the entire table length,
 	 * not just the header.
 	 */
-	is_identical = (u8)((table_desc->length != table_length ||
-			     ACPI_MEMCMP(table_desc->pointer, table,
-					 table_length)) ? FALSE : TRUE);
+	is_identical =
+	    (u8)((ACPI_DECODE32(&table_desc->length) != table_length
+		  || ACPI_MEMCMP(table_desc->pointer, table,
+				 table_length)) ? FALSE : TRUE);
 
 	/* Release the acquired table */
 
@@ -146,7 +147,8 @@ acpi_tb_install_table_with_override(u32 table_index,
 	/* Set the global integer width (based upon revision of the DSDT) */
 
 	if (table_index == ACPI_TABLE_INDEX_DSDT) {
-		acpi_ut_set_integer_width(new_table_desc->pointer->revision);
+		acpi_ut_set_integer_width(ACPI_DECODE8
+					  (&new_table_desc->pointer->revision));
 	}
 }
 
