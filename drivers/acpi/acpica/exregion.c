@@ -220,22 +220,22 @@ acpi_ex_system_memory_space_handler(u32 function,
 		switch (bit_width) {
 		case 8:
 
-			*value = (u64)ACPI_GET8(logical_addr_ptr);
+			*value = (u64)ACPI_READ8(logical_addr_ptr);
 			break;
 
 		case 16:
 
-			*value = (u64)ACPI_GET16(logical_addr_ptr);
+			*value = (u64)ACPI_READ16(logical_addr_ptr);
 			break;
 
 		case 32:
 
-			*value = (u64)ACPI_GET32(logical_addr_ptr);
+			*value = (u64)ACPI_READ32(logical_addr_ptr);
 			break;
 
 		case 64:
 
-			*value = (u64)ACPI_GET64(logical_addr_ptr);
+			*value = (u64)ACPI_READ64(logical_addr_ptr);
 			break;
 
 		default:
@@ -251,22 +251,22 @@ acpi_ex_system_memory_space_handler(u32 function,
 		switch (bit_width) {
 		case 8:
 
-			ACPI_SET8(logical_addr_ptr, *value);
+			ACPI_WRITE8(logical_addr_ptr, *value);
 			break;
 
 		case 16:
 
-			ACPI_SET16(logical_addr_ptr, *value);
+			ACPI_WRITE16(logical_addr_ptr, *value);
 			break;
 
 		case 32:
 
-			ACPI_SET32(logical_addr_ptr, *value);
+			ACPI_WRITE32(logical_addr_ptr, *value);
 			break;
 
 		case 64:
 
-			ACPI_SET64(logical_addr_ptr, *value);
+			ACPI_WRITE64(logical_addr_ptr, *value);
 			break;
 
 		default:
