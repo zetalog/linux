@@ -103,14 +103,14 @@ u16 acpi_ps_peek_opcode(struct acpi_parse_state * parser_state)
 	u16 opcode;
 
 	aml = parser_state->aml;
-	opcode = (u16) ACPI_GET8(aml);
+	opcode = (u16)ACPI_GET8(aml);
 
 	if (opcode == AML_EXTENDED_OP_PREFIX) {
 
 		/* Extended opcode, get the second opcode byte */
 
 		aml++;
-		opcode = (u16) ((opcode << 8) | ACPI_GET8(aml));
+		opcode = (u16)((opcode << 8) | ACPI_GET8(aml));
 	}
 
 	return (opcode);

@@ -695,7 +695,7 @@ u8 acpi_ut_get_resource_type(void *aml)
 	} else {
 		/* Small Resource Type -- bits 6:3 contain the name */
 
-		return ((u8) (ACPI_GET8(aml) & ACPI_RESOURCE_NAME_SMALL_MASK));
+		return ((u8)(ACPI_GET8(aml) & ACPI_RESOURCE_NAME_SMALL_MASK));
 	}
 }
 
@@ -732,8 +732,8 @@ u16 acpi_ut_get_resource_length(void *aml)
 	} else {
 		/* Small Resource type -- bits 2:0 of byte 0 contain the length */
 
-		resource_length = (u16) (ACPI_GET8(aml) &
-					 ACPI_RESOURCE_NAME_SMALL_LENGTH_MASK);
+		resource_length = (u16)(ACPI_GET8(aml) &
+					ACPI_RESOURCE_NAME_SMALL_LENGTH_MASK);
 	}
 
 	return (resource_length);
