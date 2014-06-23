@@ -86,7 +86,7 @@ acpi_ps_get_next_package_length(struct acpi_parse_state *parser_state)
 	 * Byte 0 bits [6:7] contain the number of additional bytes
 	 * used to encode the package length, either 0,1,2, or 3
 	 */
-	byte_count = (aml[0] >> 6);
+	byte_count = (ACPI_DECODE8(aml) >> 6);
 	parser_state->aml += ((acpi_size) byte_count + 1);
 
 	/* Get bytes 3, 2, 1 as needed */
@@ -99,7 +99,8 @@ acpi_ps_get_next_package_length(struct acpi_parse_state *parser_state)
 		 *      Byte1->[04:11]
 		 *      Byte0->[00:03]
 		 */
-		package_length |= (aml[byte_count] << ((byte_count << 3) - 4));
+		package_length |=
+		    (ACPI_DECODE8(aml + byte_count) << ((byte_count << 3) - 4));
 
 		byte_zero_mask = 0x0F;	/* Use bits [0:3] of byte 0 */
 		byte_count--;
@@ -107,7 +108,7 @@ acpi_ps_get_next_package_length(struct acpi_parse_state *parser_state)
 
 	/* Byte 0 is a special case, either bits [0:3] or [0:5] are used */
 
-	package_length |= (aml[0] & byte_zero_mask);
+	package_length |= (ACPI_DECODE8(aml) & byte_zero_mask);
 	return_UINT32(package_length);
 }
 
@@ -403,7 +404,7 @@ acpi_ps_get_next_simple_arg(struct acpi_parse_state *parser_state,
 		/* Get 1 byte from the AML stream */
 
 		opcode = AML_BYTE_OP;
-		arg->common.value.integer = (u64)*aml;
+		arg->common.value.integer = (u64)ACPI_DECODE8(aml);
 		length = 1;
 		break;
 
@@ -412,7 +413,7 @@ acpi_ps_get_next_simple_arg(struct acpi_parse_state *parser_state,
 		/* Get 2 bytes from the AML stream */
 
 		opcode = AML_WORD_OP;
-		ACPI_MOVE_16_TO_64(&arg->common.value.integer, aml);
+		arg->common.value.integer = (u64)ACPI_DECODE16(aml);
 		length = 2;
 		break;
 
@@ -421,7 +422,7 @@ acpi_ps_get_next_simple_arg(struct acpi_parse_state *parser_state,
 		/* Get 4 bytes from the AML stream */
 
 		opcode = AML_DWORD_OP;
-		ACPI_MOVE_32_TO_64(&arg->common.value.integer, aml);
+		arg->common.value.integer = (u64)ACPI_DECODE32(aml);
 		length = 4;
 		break;
 
@@ -430,7 +431,7 @@ acpi_ps_get_next_simple_arg(struct acpi_parse_state *parser_state,
 		/* Get 8 bytes from the AML stream */
 
 		opcode = AML_QWORD_OP;
-		ACPI_MOVE_64_TO_64(&arg->common.value.integer, aml);
+		arg->common.value.integer = ACPI_DECODE64(aml);
 		length = 8;
 		break;
 
@@ -503,7 +504,7 @@ static union acpi_parse_object *acpi_ps_get_next_field(struct acpi_parse_state
 
 	/* Determine field type */
 
-	switch (ACPI_GET8(parser_state->aml)) {
+	switch (ACPI_DECODE8(parser_state->aml)) {
 	case AML_FIELD_OFFSET_OP:
 
 		opcode = AML_INT_RESERVEDFIELD_OP;
@@ -579,9 +580,9 @@ static union acpi_parse_object *acpi_ps_get_next_field(struct acpi_parse_state
 
 		/* Get the two bytes (Type/Attribute) */
 
-		access_type = ACPI_GET8(parser_state->aml);
+		access_type = ACPI_DECODE8(parser_state->aml);
 		parser_state->aml++;
-		access_attribute = ACPI_GET8(parser_state->aml);
+		access_attribute = ACPI_DECODE8(parser_state->aml);
 		parser_state->aml++;
 
 		field->common.value.integer = (u8)access_type;
@@ -590,7 +591,7 @@ static union acpi_parse_object *acpi_ps_get_next_field(struct acpi_parse_state
 		/* This opcode has a third byte, access_length */
 
 		if (opcode == AML_INT_EXTACCESSFIELD_OP) {
-			access_length = ACPI_GET8(parser_state->aml);
+			access_length = ACPI_DECODE8(parser_state->aml);
 			parser_state->aml++;
 
 			field->common.value.integer |=
@@ -604,7 +605,7 @@ static union acpi_parse_object *acpi_ps_get_next_field(struct acpi_parse_state
 		 * Argument for Connection operator can be either a Buffer
 		 * (resource descriptor), or a name_string.
 		 */
-		if (ACPI_GET8(parser_state->aml) == AML_BUFFER_OP) {
+		if (ACPI_DECODE8(parser_state->aml) == AML_BUFFER_OP) {
 			parser_state->aml++;
 
 			pkg_end = parser_state->aml;
@@ -624,28 +625,28 @@ static union acpi_parse_object *acpi_ps_get_next_field(struct acpi_parse_state
 
 				/* Get the actual buffer length argument */
 
-				opcode = ACPI_GET8(parser_state->aml);
+				opcode = ACPI_DECODE8(parser_state->aml);
 				parser_state->aml++;
 
 				switch (opcode) {
 				case AML_BYTE_OP:	/* AML_BYTEDATA_ARG */
 
 					buffer_length =
-					    ACPI_GET8(parser_state->aml);
+					    ACPI_DECODE8(parser_state->aml);
 					parser_state->aml += 1;
 					break;
 
 				case AML_WORD_OP:	/* AML_WORDDATA_ARG */
 
 					buffer_length =
-					    ACPI_GET16(parser_state->aml);
+					    ACPI_DECODE16(parser_state->aml);
 					parser_state->aml += 2;
 					break;
 
 				case AML_DWORD_OP:	/* AML_DWORDATA_ARG */
 
 					buffer_length =
-					    ACPI_GET32(parser_state->aml);
+					    ACPI_DECODE32(parser_state->aml);
 					parser_state->aml += 4;
 					break;
 
