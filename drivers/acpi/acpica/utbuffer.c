@@ -105,33 +105,34 @@ void acpi_ut_dump_buffer(u8 *buffer, u32 count, u32 display, u32 base_offset)
 			case DB_BYTE_DISPLAY:
 			default:	/* Default is BYTE display */
 
-				acpi_os_printf("%02X ",
-					       buffer[(acpi_size) i + j]);
+				buf_char =
+				    ACPI_DECODE8(&buffer[(acpi_size) i + j]);
+				acpi_os_printf("%02X ", buf_char);
 				break;
 
 			case DB_WORD_DISPLAY:
 
-				ACPI_MOVE_16_TO_32(&temp32,
-						   &buffer[(acpi_size) i + j]);
+				temp32 =
+				    ACPI_DECODE16(&buffer[(acpi_size) i + j]);
 				acpi_os_printf("%04X ", temp32);
 				break;
 
 			case DB_DWORD_DISPLAY:
 
-				ACPI_MOVE_32_TO_32(&temp32,
-						   &buffer[(acpi_size) i + j]);
+				temp32 =
+				    ACPI_DECODE32(&buffer[(acpi_size) i + j]);
 				acpi_os_printf("%08X ", temp32);
 				break;
 
 			case DB_QWORD_DISPLAY:
 
-				ACPI_MOVE_32_TO_32(&temp32,
-						   &buffer[(acpi_size) i + j]);
+				temp32 =
+				    ACPI_DECODE32(&buffer[(acpi_size) i + j]);
 				acpi_os_printf("%08X", temp32);
 
-				ACPI_MOVE_32_TO_32(&temp32,
-						   &buffer[(acpi_size) i + j +
-							   4]);
+				temp32 =
+				    ACPI_DECODE32(&buffer
+						  [(acpi_size) i + j + 4]);
 				acpi_os_printf("%08X ", temp32);
 				break;
 			}
@@ -150,7 +151,7 @@ void acpi_ut_dump_buffer(u8 *buffer, u32 count, u32 display, u32 base_offset)
 				return;
 			}
 
-			buf_char = buffer[(acpi_size) i + j];
+			buf_char = ACPI_DECODE8(&buffer[(acpi_size) i + j]);
 			if (ACPI_IS_PRINT(buf_char)) {
 				acpi_os_printf("%c", buf_char);
 			} else {

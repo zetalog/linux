@@ -528,20 +528,20 @@ acpi_decode_pld_buffer(u8 *in_buffer,
 
 	/* First 32-bit DWord */
 
-	ACPI_MOVE_32_TO_32(&dword, &buffer[0]);
+	dword = ACPI_DECODE32(&buffer[0]);
 	pld_info->revision = ACPI_PLD_GET_REVISION(&dword);
 	pld_info->ignore_color = ACPI_PLD_GET_IGNORE_COLOR(&dword);
 	pld_info->color = ACPI_PLD_GET_COLOR(&dword);
 
 	/* Second 32-bit DWord */
 
-	ACPI_MOVE_32_TO_32(&dword, &buffer[1]);
+	dword = ACPI_DECODE32(&buffer[1]);
 	pld_info->width = ACPI_PLD_GET_WIDTH(&dword);
 	pld_info->height = ACPI_PLD_GET_HEIGHT(&dword);
 
 	/* Third 32-bit DWord */
 
-	ACPI_MOVE_32_TO_32(&dword, &buffer[2]);
+	dword = ACPI_DECODE32(&buffer[2]);
 	pld_info->user_visible = ACPI_PLD_GET_USER_VISIBLE(&dword);
 	pld_info->dock = ACPI_PLD_GET_DOCK(&dword);
 	pld_info->lid = ACPI_PLD_GET_LID(&dword);
@@ -556,7 +556,7 @@ acpi_decode_pld_buffer(u8 *in_buffer,
 
 	/* Fourth 32-bit DWord */
 
-	ACPI_MOVE_32_TO_32(&dword, &buffer[3]);
+	dword = ACPI_DECODE32(&buffer[3]);
 	pld_info->ejectable = ACPI_PLD_GET_EJECTABLE(&dword);
 	pld_info->ospm_eject_required = ACPI_PLD_GET_OSPM_EJECT(&dword);
 	pld_info->cabinet_number = ACPI_PLD_GET_CABINET(&dword);
@@ -569,7 +569,7 @@ acpi_decode_pld_buffer(u8 *in_buffer,
 
 		/* Fifth 32-bit DWord (Revision 2 of _PLD) */
 
-		ACPI_MOVE_32_TO_32(&dword, &buffer[4]);
+		dword = ACPI_DECODE32(&buffer[4]);
 		pld_info->vertical_offset = ACPI_PLD_GET_VERT_OFFSET(&dword);
 		pld_info->horizontal_offset = ACPI_PLD_GET_HORIZ_OFFSET(&dword);
 	}
