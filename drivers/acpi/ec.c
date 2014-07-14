@@ -74,6 +74,7 @@ enum ec_command {
 #define ACPI_EC_MSI_UDELAY	550	/* Wait 550us for MSI EC */
 #define ACPI_EC_CLEAR_MAX	100	/* Maximum number of events to query
 					 * when trying to clear the EC */
+#define ACPI_EC_POLL_TIMEOUT	500	/* Polling event every 500ms */
 
 enum {
 	EC_FLAGS_EVENT_ENABLED,		/* Event is enabled */
@@ -84,6 +85,8 @@ enum {
 	EC_FLAGS_STOPPED,		/* Driver is stopped */
 	EC_FLAGS_COMMAND_STORM,		/* GPE storms occurred to the
 					 * current command processing */
+	EC_FLAGS_EVENT_STORM,		/* GPE storms occurred to the
+					 * current event processing */
 };
 
 #define ACPI_EC_COMMAND_POLL		0x01 /* Available for command byte */
@@ -153,6 +156,12 @@ static bool acpi_ec_has_pending_event(struct acpi_ec *ec)
 	       test_bit(EC_FLAGS_EVENT_PENDING, &ec->flags);
 }
 
+static bool acpi_ec_has_gpe_storm(struct acpi_ec *ec)
+{
+	return test_bit(EC_FLAGS_COMMAND_STORM, &ec->flags) ||
+	       test_bit(EC_FLAGS_EVENT_STORM, &ec->flags);
+}
+
 /* --------------------------------------------------------------------------
                              GPE Enhancement
    -------------------------------------------------------------------------- */
@@ -160,8 +169,10 @@ static bool acpi_ec_has_pending_event(struct acpi_ec *ec)
 static void acpi_ec_set_storm(struct acpi_ec *ec, u8 flag)
 {
 	if (!test_bit(flag, &ec->flags)) {
-		acpi_set_gpe(NULL, ec->gpe, ACPI_GPE_DISABLE);
-		pr_debug("+++++ Polling enabled +++++\n");
+		if (!acpi_ec_has_gpe_storm(ec)) {
+			acpi_set_gpe(NULL, ec->gpe, ACPI_GPE_DISABLE);
+			pr_debug("+++++ Polling enabled +++++\n");
+		}
 		set_bit(flag, &ec->flags);
 	}
 }
@@ -170,8 +181,10 @@ static void acpi_ec_clear_storm(struct acpi_ec *ec, u8 flag)
 {
 	if (test_bit(flag, &ec->flags)) {
 		clear_bit(flag, &ec->flags);
-		acpi_set_gpe(NULL, ec->gpe, ACPI_GPE_ENABLE);
-		pr_debug("+++++ Polling disabled +++++\n");
+		if (!acpi_ec_has_gpe_storm(ec)) {
+			acpi_set_gpe(NULL, ec->gpe, ACPI_GPE_ENABLE);
+			pr_debug("+++++ Polling disabled +++++\n");
+		}
 	}
 }
 
@@ -271,18 +284,25 @@ static void __acpi_ec_complete_event(struct acpi_ec *ec)
 int acpi_ec_wait_for_event(struct acpi_ec *ec)
 {
 	unsigned long flags;
+	signed long timeout;
+	int polling;
 
 	set_current_state(TASK_INTERRUPTIBLE);
+	timeout = msecs_to_jiffies(ACPI_EC_POLL_TIMEOUT);
 	while (!kthread_should_stop()) {
 		spin_lock_irqsave(&ec->lock, flags);
-		if (acpi_ec_has_pending_event(ec)) {
+		polling = test_bit(EC_FLAGS_EVENT_STORM, &ec->flags);
+		if (acpi_ec_has_pending_event(ec) ||
+		    (polling && !timeout)) {
 			spin_unlock_irqrestore(&ec->lock, flags);
 			__set_current_state(TASK_RUNNING);
 			return 0;
 		}
 		spin_unlock_irqrestore(&ec->lock, flags);
-		schedule();
+		timeout = schedule_timeout(timeout);
 		set_current_state(TASK_INTERRUPTIBLE);
+		if (!polling)
+			timeout = msecs_to_jiffies(ACPI_EC_POLL_TIMEOUT);
 	}
 	__set_current_state(TASK_RUNNING);
 	return -1;
@@ -528,7 +548,7 @@ static int acpi_ec_transaction(struct acpi_ec *ec, struct transaction *t)
 
 	status = acpi_ec_transaction_unlocked(ec, t);
 
-	if (test_bit(EC_FLAGS_COMMAND_STORM, &ec->flags))
+	if (acpi_ec_has_gpe_storm(ec))
 		msleep(1);
 	if (ec->global_lock)
 		acpi_release_global_lock(glk);
@@ -695,6 +715,8 @@ static void acpi_ec_stop(struct acpi_ec *ec)
 		spin_unlock_irqrestore(&ec->lock, flags);
 		wait_event(ec->wait, acpi_ec_stopped(ec));
 		spin_lock_irqsave(&ec->lock, flags);
+		/* Event storm may still be indicated */
+		acpi_ec_clear_storm(ec, EC_FLAGS_EVENT_STORM);
 		/* Disable GPE for event processing (SCI_EVT=1) */
 		acpi_ec_disable_gpe(ec);
 		clear_bit(EC_FLAGS_STARTED, &ec->flags);
@@ -846,10 +868,17 @@ static void acpi_ec_run(void *cxt)
 
 static int acpi_ec_notify_query_handlers(struct acpi_ec *ec, u8 query_bit)
 {
+	unsigned long flags;
 	struct acpi_ec_query_handler *handler;
 
 	list_for_each_entry(handler, &ec->list, node) {
 		if (query_bit == handler->query_bit) {
+			spin_lock_irqsave(&ec->lock, flags);
+			if (ec->event_count == ec_storm_threshold) {
+				acpi_ec_clear_storm(ec, EC_FLAGS_EVENT_STORM);
+				ec->event_count = 0;
+			}
+			spin_unlock_irqrestore(&ec->lock, flags);
 			/* have custom handler for this bit */
 			handler = acpi_ec_get_query_handler(handler);
 			pr_debug("##### Query(0x%02x) scheduled #####\n",
@@ -860,6 +889,13 @@ static int acpi_ec_notify_query_handlers(struct acpi_ec *ec, u8 query_bit)
 		}
 	}
 	pr_warn_once("BIOS bug: no handler for query (0x%02x)\n", query_bit);
+	spin_lock_irqsave(&ec->lock, flags);
+	if (ec->event_count < ec_storm_threshold)
+		++ec->event_count;
+	/* Allow triggering on 0 threshold */
+	if (ec->event_count == ec_storm_threshold)
+		acpi_ec_set_storm(ec, EC_FLAGS_EVENT_STORM);
+	spin_unlock_irqrestore(&ec->lock, flags);
 	return 0;
 }
 

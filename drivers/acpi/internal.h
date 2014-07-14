@@ -130,6 +130,7 @@ struct acpi_ec {
 	struct transaction *curr;
 	spinlock_t lock;
 	struct task_struct *thread;
+	unsigned long event_count;
 };
 
 extern struct acpi_ec *first_ec;
