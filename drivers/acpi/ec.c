@@ -769,30 +769,36 @@ static void acpi_ec_run(void *cxt)
 	acpi_ec_put_query_handler(handler);
 }
 
+static int acpi_ec_notify_query_handlers(struct acpi_ec *ec, u8 query_bit)
+{
+	struct acpi_ec_query_handler *handler;
+
+	list_for_each_entry(handler, &ec->list, node) {
+		if (query_bit == handler->query_bit) {
+			/* have custom handler for this bit */
+			handler = acpi_ec_get_query_handler(handler);
+			pr_debug("push query execution (0x%2x) on queue\n",
+				 query_bit);
+			return acpi_os_execute((handler->func) ?
+				OSL_NOTIFY_HANDLER : OSL_GPE_HANDLER,
+				acpi_ec_run, handler);
+		}
+	}
+	pr_warn_once("BIOS bug: no handler for query (0x%02x)\n", query_bit);
+	return 0;
+}
+
 static int acpi_ec_sync_query(struct acpi_ec *ec, u8 *data)
 {
 	u8 value = 0;
 	int status;
-	struct acpi_ec_query_handler *handler;
 
 	status = acpi_ec_query_unlocked(ec, &value);
 	if (data)
 		*data = value;
 	if (status)
 		return status;
-
-	list_for_each_entry(handler, &ec->list, node) {
-		if (value == handler->query_bit) {
-			/* have custom handler for this bit */
-			handler = acpi_ec_get_query_handler(handler);
-			pr_debug("push query execution (0x%2x) on queue\n",
-				value);
-			return acpi_os_execute((handler->func) ?
-				OSL_NOTIFY_HANDLER : OSL_GPE_HANDLER,
-				acpi_ec_run, handler);
-		}
-	}
-	return 0;
+	return acpi_ec_notify_query_handlers(ec, value);
 }
 
 static void acpi_ec_gpe_query(void *ec_cxt)
