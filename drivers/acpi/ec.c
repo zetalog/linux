@@ -76,11 +76,12 @@ enum ec_command {
 
 enum {
 	EC_FLAGS_QUERY_PENDING,		/* Query is pending */
-	EC_FLAGS_GPE_STORM,		/* GPE storm detected */
 	EC_FLAGS_HANDLERS_INSTALLED,	/* Handlers for GPE and
 					 * OpReg are installed */
 	EC_FLAGS_STARTED,		/* Driver is started */
 	EC_FLAGS_STOPPED,		/* Driver is stopped */
+	EC_FLAGS_COMMAND_STORM,		/* GPE storms occurred to the
+					 * current command processing */
 };
 
 #define ACPI_EC_COMMAND_POLL		0x01 /* Available for command byte */
@@ -136,6 +137,28 @@ static bool acpi_ec_started(struct acpi_ec *ec)
 {
 	return test_bit(EC_FLAGS_STARTED, &ec->flags) &&
 	       !test_bit(EC_FLAGS_STOPPED, &ec->flags);
+}
+
+/* --------------------------------------------------------------------------
+                             GPE Enhancement
+   -------------------------------------------------------------------------- */
+
+static void acpi_ec_set_storm(struct acpi_ec *ec, u8 flag)
+{
+	if (!test_bit(flag, &ec->flags)) {
+		acpi_set_gpe(NULL, ec->gpe, ACPI_GPE_DISABLE);
+		pr_debug("+++++ Polling enabled +++++\n");
+		set_bit(flag, &ec->flags);
+	}
+}
+
+static void acpi_ec_clear_storm(struct acpi_ec *ec, u8 flag)
+{
+	if (test_bit(flag, &ec->flags)) {
+		clear_bit(flag, &ec->flags);
+		acpi_set_gpe(NULL, ec->gpe, ACPI_GPE_ENABLE);
+		pr_debug("+++++ Polling disabled +++++\n");
+	}
 }
 
 /* --------------------------------------------------------------------------
@@ -268,8 +291,13 @@ err:
 	 * otherwise will take a not handled IRQ as a false one.
 	 */
 	if (!(status & ACPI_EC_FLAG_SCI)) {
-		if (in_interrupt() && t)
-			++t->irq_count;
+		if (in_interrupt() && t) {
+			if (t->irq_count < ec_storm_threshold)
+				++t->irq_count;
+			/* Allow triggering on 0 threshold */
+			if (t->irq_count == ec_storm_threshold)
+				acpi_ec_set_storm(ec, EC_FLAGS_COMMAND_STORM);
+		}
 	}
 	return wakeup;
 }
@@ -342,22 +370,12 @@ static int acpi_ec_transaction_unlocked(struct acpi_ec *ec,
 	ec->curr = t;
 	pr_debug("***** Command(%s) started *****\n",
 		 acpi_ec_cmd_string(t->command));
-	if (test_bit(EC_FLAGS_GPE_STORM, &ec->flags)) {
-		pr_debug("+++++ Polling enabled +++++\n");
-		acpi_set_gpe(NULL, ec->gpe, ACPI_GPE_DISABLE);
-	}
 	start_transaction(ec);
 	spin_unlock_irqrestore(&ec->lock, tmp);
 	ret = ec_poll(ec);
 	spin_lock_irqsave(&ec->lock, tmp);
-	if (test_bit(EC_FLAGS_GPE_STORM, &ec->flags)) {
-		acpi_set_gpe(NULL, ec->gpe, ACPI_GPE_ENABLE);
-		pr_debug("+++++ Polling disabled +++++\n");
-	} else if (t->irq_count > ec_storm_threshold) {
-		pr_debug("+++++ Polling scheduled (%d GPE) +++++\n",
-			 t->irq_count);
-		set_bit(EC_FLAGS_GPE_STORM, &ec->flags);
-	}
+	if (t->irq_count == ec_storm_threshold)
+		acpi_ec_clear_storm(ec, EC_FLAGS_COMMAND_STORM);
 	if (ec->curr->command == ACPI_EC_COMMAND_QUERY)
 		clear_bit(EC_FLAGS_QUERY_PENDING, &ec->flags);
 	pr_debug("***** Command(%s) stopped *****\n",
@@ -391,7 +409,7 @@ static int acpi_ec_transaction(struct acpi_ec *ec, struct transaction *t)
 
 	/* check if we received SCI during transaction */
 	ec_check_sci_sync(ec, acpi_ec_read_status(ec));
-	if (test_bit(EC_FLAGS_GPE_STORM, &ec->flags))
+	if (test_bit(EC_FLAGS_COMMAND_STORM, &ec->flags))
 		msleep(1);
 	if (ec->global_lock)
 		acpi_release_global_lock(glk);
