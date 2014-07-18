@@ -129,6 +129,7 @@ struct acpi_ec {
 	struct list_head list;
 	struct transaction *curr;
 	spinlock_t lock;
+	struct task_struct *thread;
 };
 
 extern struct acpi_ec *first_ec;
