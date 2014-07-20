@@ -31,6 +31,7 @@
 
 /* Uncomment next line to get verbose printout */
 /* #define DEBUG */
+#define DEBUG_REF 0
 #define pr_fmt(fmt) "ACPI : EC: " fmt
 
 #include <linux/kernel.h>
@@ -91,6 +92,13 @@ enum {
 
 #define ACPI_EC_COMMAND_POLL		0x01 /* Available for command byte */
 #define ACPI_EC_COMMAND_COMPLETE	0x02 /* Completed last byte */
+
+#define ec_debug_ref(ec, fmt, ...)					\
+	do {								\
+		if (DEBUG_REF)						\
+			pr_debug("%lu: " fmt, ec->reference_count,	\
+				 ## __VA_ARGS__);			\
+	} while (0)
 
 /* ec.c is compiled in acpi namespace so this shows up as acpi.ec_delay param */
 static unsigned int ec_delay __read_mostly = ACPI_EC_DELAY;
@@ -246,6 +254,7 @@ static void acpi_ec_enable_event(struct acpi_ec *ec)
 		spin_unlock_irqrestore(&ec->lock, flags);
 		return;
 	}
+	ec_debug_ref(ec, "Increase poller(enable)\n");
 	set_bit(EC_FLAGS_EVENT_ENABLED, &ec->flags);
 	if (test_bit(EC_FLAGS_EVENT_PENDING, &ec->flags)) {
 		pr_debug("***** Event pending *****\n");
@@ -254,6 +263,7 @@ static void acpi_ec_enable_event(struct acpi_ec *ec)
 		return;
 	}
 	acpi_ec_disable_gpe(ec);
+	ec_debug_ref(ec, "Decrease poller(enable)\n");
 	spin_unlock_irqrestore(&ec->lock, flags);
 }
 
@@ -262,6 +272,7 @@ static void __acpi_ec_set_event(struct acpi_ec *ec)
 	/* Hold reference for pending event */
 	if (!acpi_ec_enable_gpe_flushable(ec, false))
 		return;
+	ec_debug_ref(ec, "Increase poller(set)\n");
 	if (!test_and_set_bit(EC_FLAGS_EVENT_PENDING, &ec->flags)) {
 		pr_debug("***** Event pending *****\n");
 		if (test_bit(EC_FLAGS_EVENT_ENABLED, &ec->flags)) {
@@ -270,6 +281,7 @@ static void __acpi_ec_set_event(struct acpi_ec *ec)
 		}
 	}
 	acpi_ec_disable_gpe(ec);
+	ec_debug_ref(ec, "Decrease poller(set)\n");
 }
 
 static void __acpi_ec_complete_event(struct acpi_ec *ec)
@@ -277,6 +289,7 @@ static void __acpi_ec_complete_event(struct acpi_ec *ec)
 	if (test_and_clear_bit(EC_FLAGS_EVENT_PENDING, &ec->flags)) {
 		/* Unhold reference for pending event */
 		acpi_ec_disable_gpe(ec);
+		ec_debug_ref(ec, "Decrease poller\n");
 		pr_debug("***** Event running *****\n");
 	}
 }
@@ -509,6 +522,7 @@ static int acpi_ec_transaction_unlocked(struct acpi_ec *ec,
 		ret = -EINVAL;
 		goto unlock;
 	}
+	ec_debug_ref(ec, "Increase command\n");
 	/* following two actions should be kept atomic */
 	ec->curr = t;
 	pr_debug("***** Command(%s) started *****\n",
@@ -524,6 +538,7 @@ static int acpi_ec_transaction_unlocked(struct acpi_ec *ec,
 	ec->curr = NULL;
 	/* Disable GPE for command processing (IBF=0/OBF=1) */
 	acpi_ec_disable_gpe(ec);
+	ec_debug_ref(ec, "Decrease command\n");
 unlock:
 	spin_unlock_irqrestore(&ec->lock, tmp);
 	return ret;
@@ -688,6 +703,7 @@ static void acpi_ec_start(struct acpi_ec *ec)
 		pr_debug("+++++ Starting EC +++++\n");
 		/* Enable GPE for event processing (SCI_EVT=1) */
 		acpi_ec_enable_gpe(ec);
+		ec_debug_ref(ec, "Increase event\n");
 		pr_info("+++++ EC started +++++\n");
 	}
 	spin_unlock_irqrestore(&ec->lock, flags);
@@ -719,6 +735,7 @@ static void acpi_ec_stop(struct acpi_ec *ec)
 		acpi_ec_clear_storm(ec, EC_FLAGS_EVENT_STORM);
 		/* Disable GPE for event processing (SCI_EVT=1) */
 		acpi_ec_disable_gpe(ec);
+		ec_debug_ref(ec, "Decrease event\n");
 		clear_bit(EC_FLAGS_STARTED, &ec->flags);
 		clear_bit(EC_FLAGS_STOPPED, &ec->flags);
 		pr_info("+++++ EC stopped +++++\n");
