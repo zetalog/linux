@@ -114,6 +114,12 @@ static unsigned int ec_storm_threshold  __read_mostly = 8;
 module_param(ec_storm_threshold, uint, 0644);
 MODULE_PARM_DESC(ec_storm_threshold, "Maxim false GPE numbers not considered as GPE storm");
 
+static bool ec_poll_events __read_mostly;
+static const struct kernel_param_ops param_ops_ec_poll_events;
+module_param_cb(ec_poll_events,
+		&param_ops_ec_poll_events, &ec_poll_events, 0644);
+MODULE_PARM_DESC(ec_poll_events, "Polling events without enabling IRQ");
+
 struct acpi_ec_query_handler {
 	struct list_head node;
 	acpi_ec_query_func func;
@@ -158,6 +164,12 @@ static bool acpi_ec_started(struct acpi_ec *ec)
 	       !test_bit(EC_FLAGS_STOPPED, &ec->flags);
 }
 
+static bool acpi_ec_stopping(struct acpi_ec *ec)
+{
+	return test_bit(EC_FLAGS_STARTED, &ec->flags) &&
+	       test_bit(EC_FLAGS_STOPPED, &ec->flags);
+}
+
 static bool acpi_ec_has_pending_event(struct acpi_ec *ec)
 {
 	return test_bit(EC_FLAGS_EVENT_ENABLED, &ec->flags) &&
@@ -198,6 +210,8 @@ static void acpi_ec_clear_storm(struct acpi_ec *ec, u8 flag)
 
 static bool acpi_ec_flushed(struct acpi_ec *ec)
 {
+	if (ec_poll_events)
+		return ec->reference_count == 0;
 	return ec->reference_count == 1;
 }
 
@@ -304,7 +318,8 @@ int acpi_ec_wait_for_event(struct acpi_ec *ec)
 	timeout = msecs_to_jiffies(ACPI_EC_POLL_TIMEOUT);
 	while (!kthread_should_stop()) {
 		spin_lock_irqsave(&ec->lock, flags);
-		polling = test_bit(EC_FLAGS_EVENT_STORM, &ec->flags);
+		polling = (ec_poll_events ||
+			   test_bit(EC_FLAGS_EVENT_STORM, &ec->flags));
 		if (acpi_ec_has_pending_event(ec) ||
 		    (polling && !timeout)) {
 			spin_unlock_irqrestore(&ec->lock, flags);
@@ -701,9 +716,11 @@ static void acpi_ec_start(struct acpi_ec *ec)
 	spin_lock_irqsave(&ec->lock, flags);
 	if (!test_and_set_bit(EC_FLAGS_STARTED, &ec->flags)) {
 		pr_debug("+++++ Starting EC +++++\n");
-		/* Enable GPE for event processing (SCI_EVT=1) */
-		acpi_ec_enable_gpe(ec);
-		ec_debug_ref(ec, "Increase event\n");
+		if (!ec_poll_events) {
+			/* Enable GPE for event processing (SCI_EVT=1) */
+			acpi_ec_enable_gpe(ec);
+			ec_debug_ref(ec, "Increase event\n");
+		}
 		pr_info("+++++ EC started +++++\n");
 	}
 	spin_unlock_irqrestore(&ec->lock, flags);
@@ -732,10 +749,12 @@ static void acpi_ec_stop(struct acpi_ec *ec)
 		wait_event(ec->wait, acpi_ec_stopped(ec));
 		spin_lock_irqsave(&ec->lock, flags);
 		/* Event storm may still be indicated */
-		acpi_ec_clear_storm(ec, EC_FLAGS_EVENT_STORM);
-		/* Disable GPE for event processing (SCI_EVT=1) */
-		acpi_ec_disable_gpe(ec);
-		ec_debug_ref(ec, "Decrease event\n");
+		if (!ec_poll_events) {
+			acpi_ec_clear_storm(ec, EC_FLAGS_EVENT_STORM);
+			/* Disable GPE for event processing (SCI_EVT=1) */
+			acpi_ec_disable_gpe(ec);
+			ec_debug_ref(ec, "Decrease event\n");
+		}
 		clear_bit(EC_FLAGS_STARTED, &ec->flags);
 		clear_bit(EC_FLAGS_STOPPED, &ec->flags);
 		pr_info("+++++ EC stopped +++++\n");
@@ -891,7 +910,8 @@ static int acpi_ec_notify_query_handlers(struct acpi_ec *ec, u8 query_bit)
 	list_for_each_entry(handler, &ec->list, node) {
 		if (query_bit == handler->query_bit) {
 			spin_lock_irqsave(&ec->lock, flags);
-			if (ec->event_count == ec_storm_threshold) {
+			if (!ec_poll_events &&
+			    ec->event_count == ec_storm_threshold) {
 				acpi_ec_clear_storm(ec, EC_FLAGS_EVENT_STORM);
 				ec->event_count = 0;
 			}
@@ -910,7 +930,7 @@ static int acpi_ec_notify_query_handlers(struct acpi_ec *ec, u8 query_bit)
 	if (ec->event_count < ec_storm_threshold)
 		++ec->event_count;
 	/* Allow triggering on 0 threshold */
-	if (ec->event_count == ec_storm_threshold)
+	if (!ec_poll_events && ec->event_count == ec_storm_threshold)
 		acpi_ec_set_storm(ec, EC_FLAGS_EVENT_STORM);
 	spin_unlock_irqrestore(&ec->lock, flags);
 	return 0;
@@ -1451,6 +1471,57 @@ error:
 	boot_ec = NULL;
 	return -ENODEV;
 }
+
+static int param_set_ec_poll_events(const char *val,
+				    const struct kernel_param *kp)
+{
+	int res;
+	bool tmp;
+	unsigned long flags;
+	struct acpi_ec *ec;
+
+	/* No equals means "set"... */
+	if (!val)
+		val = "1";
+	res = strtobool(val, &tmp);
+	if (res)
+		return res;
+	if (!first_ec) {
+		/* Hack a boot parameter */
+		pr_info("Switching to event %s mode\n",
+			tmp ? "polling" : "interrupt");
+		ec_poll_events = tmp;
+		return 0;
+	}
+	/* Do not support switching for other ECs */
+	ec = first_ec;
+	spin_lock_irqsave(&ec->lock, flags);
+	if (tmp != ec_poll_events) {
+		if (acpi_ec_stopping(ec)) {
+			pr_err("Cannot switch event mode during flushing\n");
+			res = -EAGAIN;
+		} else {
+			if (acpi_ec_started(ec)) {
+				if (tmp) {
+					acpi_ec_clear_storm(ec,
+						EC_FLAGS_EVENT_STORM);
+					acpi_ec_disable_gpe(ec);
+				} else
+					acpi_ec_enable_gpe(ec);
+			}
+			pr_info("Switching first EC to event %s mode\n",
+				tmp ? "polling" : "interrupt");
+			ec_poll_events = tmp;
+		}
+	}
+	spin_unlock_irqrestore(&ec->lock, flags);
+	return res;
+}
+
+static const struct kernel_param_ops param_ops_ec_poll_events = {
+	.set = param_set_ec_poll_events,
+	.get = param_get_bool,
+};
 
 static struct acpi_driver acpi_ec_driver = {
 	.name = "ec",
