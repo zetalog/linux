@@ -713,41 +713,49 @@ typedef u32 acpi_event_type;
  * The encoding of acpi_event_status is illustrated below.
  * Note that a set bit (1) indicates the property is TRUE
  * (e.g. if bit 0 is set then the event is enabled).
- * +-------------+-+-+-+-+
- * |   Bits 31:4 |3|2|1|0|
- * +-------------+-+-+-+-+
- *          |     | | | |
- *          |     | | | +- Enabled?
- *          |     | | +--- Enabled for wake?
- *          |     | +----- Set?
- *          |     +------- Has a handler?
- *          +------------- <Reserved>
+ * +-------------+-+-+-+-+-+-+
+ * |   Bits 31:6 |5|4|3|2|1|0|
+ * +-------------+-+-+-+-+-+-+
+ *          |     | | | | | |
+ *          |     | | | | | +- Enabled?
+ *          |     | | | | +--- Enabled for wake?
+ *          |     | | | +----- Status bit set?
+ *          |     | | +------- Enable bit set?
+ *          |     | +--------- Has a handler?
+ *          |     +----------- Enabling/disabling forced?
+ *          +----------------- <Reserved>
  */
 typedef u32 acpi_event_status;
 
 #define ACPI_EVENT_FLAG_DISABLED        (acpi_event_status) 0x00
 #define ACPI_EVENT_FLAG_ENABLED         (acpi_event_status) 0x01
 #define ACPI_EVENT_FLAG_WAKE_ENABLED    (acpi_event_status) 0x02
-#define ACPI_EVENT_FLAG_SET             (acpi_event_status) 0x04
-#define ACPI_EVENT_FLAG_HANDLE          (acpi_event_status) 0x08
+#define ACPI_EVENT_FLAG_STATUS_SET      (acpi_event_status) 0x04
+#define ACPI_EVENT_FLAG_ENABLE_SET      (acpi_event_status) 0x08
+#define ACPI_EVENT_FLAG_HANDLE          (acpi_event_status) 0x10
+#define ACPI_EVENT_FLAG_FORCE           (acpi_event_status) 0x20
+#define ACPI_EVENT_FLAG_SET             ACPI_EVENT_FLAG_STATUS_SET
 
 /* Actions for acpi_set_gpe, acpi_gpe_wakeup, acpi_hw_low_set_gpe */
 
 #define ACPI_GPE_ENABLE                 0
 #define ACPI_GPE_DISABLE                1
 #define ACPI_GPE_CONDITIONAL_ENABLE     2
+#define ACPI_GPE_RESET_FORCE_FLAGS      3
 
 /*
  * GPE info flags - Per GPE
- * +-------+-+-+-+---+
- * |  7:5  |4|3|2|1:0|
- * +-------+-+-+-+---+
- *     |    | | |  |
- *     |    | | |  +-- Type of dispatch:to method, handler, notify, or none
- *     |    | | +----- Interrupt type: edge or level triggered
- *     |    | +------- Is a Wake GPE
- *     |    +--------- Allow driver to full control GPE handling
- *     +-------------- <Reserved>
+ * +-+-+-+-+-+-+---+
+ * |7|6|5|4|3|2|1:0|
+ * +-+-+-+-+-+-+---+
+ *  | | | | | |  |
+ *  | | | | | |  +-- Type of dispatch:to method, handler, notify, or none
+ *  | | | | | +----- Interrupt type: edge or level triggered
+ *  | | | | +------- Is a Wake GPE
+ *  | | | +--------- Allow driver to full control GPE handling
+ *  | | +----------- Force GPE enabling
+ *  | +------------- Force GPE disabling
+ *  +--------------- <Reserved>
  */
 #define ACPI_GPE_DISPATCH_NONE          (u8) 0x00
 #define ACPI_GPE_DISPATCH_METHOD        (u8) 0x01
@@ -763,6 +771,10 @@ typedef u32 acpi_event_status;
 
 #define ACPI_GPE_RAW_HANDLER            (u8) 0x10
 #define ACPI_GPE_XRUPT_FLAG_MASK        (u8) 0x10
+
+#define ACPI_GPE_FORCE_ENABLE           (u8) 0x20
+#define ACPI_GPE_FORCE_DISABLE          (u8) 0x40
+#define ACPI_GPE_FORCE_FLAG_MASK        (u8) 0x60
 
 /*
  * Flags for GPE and Lock interfaces

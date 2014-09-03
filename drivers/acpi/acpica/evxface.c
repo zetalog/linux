@@ -907,6 +907,16 @@ acpi_remove_gpe_handler(acpi_handle gpe_device,
 
 	handler = gpe_event_info->dispatch.handler;
 
+	/*
+	 * Disallow forced enabling/disabling when the GPE cannot be
+	 * dispatched again.
+	 */
+	if ((gpe_event_info->flags & ACPI_GPE_FORCE_FLAG_MASK) &&
+	    ((handler->original_flags & ACPI_GPE_DISPATCH_MASK) ==
+	     ACPI_GPE_DISPATCH_NONE)) {
+		acpi_ev_force_gpe(gpe_event_info, ACPI_GPE_RESET_FORCE_FLAGS);
+	}
+
 	/* Restore Method node (if any), set dispatch flags */
 
 	gpe_event_info->dispatch.method_node = handler->method_node;

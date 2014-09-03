@@ -167,6 +167,106 @@ acpi_status acpi_ev_enable_gpe(struct acpi_gpe_event_info *gpe_event_info)
 
 /*******************************************************************************
  *
+ * FUNCTION:    acpi_ev_force_gpe
+ *
+ * PARAMETERS:  gpe_event_info          - GPE to force enabling/disabling
+ *              action                  - ACPI_GPE_ENABLE, ACPI_GPE_DISABLE or
+ *                                        ACPI_GPE_RESET_FORCE_FLAGS
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: Unconditionally enable or disable an individual GPE.
+ *
+ ******************************************************************************/
+
+acpi_status
+acpi_ev_force_gpe(struct acpi_gpe_event_info *gpe_event_info, u8 action)
+{
+	acpi_status status;
+	acpi_event_status event_status;
+
+	ACPI_FUNCTION_TRACE(acpi_ev_gpe);
+
+	/* Do not allow unless the GPE can be dispatched */
+
+	if ((gpe_event_info->flags & ACPI_GPE_DISPATCH_MASK) ==
+	    ACPI_GPE_DISPATCH_NONE) {
+		return_ACPI_STATUS(AE_NO_HANDLER);
+	}
+
+	/* Perform the action */
+
+	switch (action) {
+	case ACPI_GPE_ENABLE:
+	case ACPI_GPE_DISABLE:
+
+		if (!(gpe_event_info->flags & ACPI_GPE_FORCE_FLAG_MASK)) {
+			status =
+			    acpi_hw_get_gpe_status(gpe_event_info,
+						   &event_status);
+			if (ACPI_FAILURE(status)) {
+				return_ACPI_STATUS(status);
+			}
+			if (event_status & ACPI_EVENT_FLAG_ENABLE_SET) {
+				gpe_event_info->expect_enabled = TRUE;
+			} else {
+				gpe_event_info->expect_enabled = FALSE;
+			}
+		}
+
+		/* Reset flags so that acpi_hw_low_set_gpe() can take effective */
+
+		gpe_event_info->flags &= ~ACPI_GPE_FORCE_FLAG_MASK;
+		if (action == ACPI_GPE_ENABLE) {
+			/*
+			 * Peform ACK and ENABLE to discard stale events, this action
+			 * might be required by some quirks.
+			 */
+			(void)acpi_hw_clear_gpe(gpe_event_info);
+			(void)acpi_hw_low_set_gpe(gpe_event_info,
+						  ACPI_GPE_ENABLE);
+			gpe_event_info->flags |= ACPI_GPE_FORCE_ENABLE;
+		} else {
+			(void)acpi_hw_low_set_gpe(gpe_event_info,
+						  ACPI_GPE_DISABLE);
+			gpe_event_info->flags |= ACPI_GPE_FORCE_DISABLE;
+		}
+		break;
+
+	case ACPI_GPE_RESET_FORCE_FLAGS:
+
+		if (!(gpe_event_info->flags & ACPI_GPE_FORCE_FLAG_MASK)) {
+			return_ACPI_STATUS(AE_BAD_PARAMETER);
+		}
+
+		/* Reset flags so that acpi_hw_low_set_gpe() can take effective */
+
+		gpe_event_info->flags &= ~ACPI_GPE_FORCE_FLAG_MASK;
+		if (gpe_event_info->expect_enabled) {
+			/*
+			 * Peform ACK and ENABLE to discard stale events, this action
+			 * might be required by some quirks.
+			 */
+			(void)acpi_hw_clear_gpe(gpe_event_info);
+			(void)acpi_hw_low_set_gpe(gpe_event_info,
+						  ACPI_GPE_ENABLE);
+		} else {
+			(void)acpi_hw_low_set_gpe(gpe_event_info,
+						  ACPI_GPE_DISABLE);
+		}
+		gpe_event_info->expect_enabled = FALSE;
+		break;
+
+	default:
+
+		return_ACPI_STATUS(AE_BAD_PARAMETER);
+	}
+
+	return_ACPI_STATUS(AE_OK);
+}
+
+/*******************************************************************************
+ *
  * FUNCTION:    acpi_ev_add_gpe_reference
  *
  * PARAMETERS:  gpe_event_info          - Add a reference to this GPE

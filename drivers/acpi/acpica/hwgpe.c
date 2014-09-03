@@ -142,9 +142,22 @@ acpi_hw_low_set_gpe(struct acpi_gpe_event_info *gpe_event_info, u32 action)
 		return (AE_BAD_PARAMETER);
 	}
 
-	/* Write the updated enable mask */
+	/* Check if the system manager has forced a GPE enabling/disabling */
 
-	status = acpi_hw_write(enable_mask, &gpe_register_info->enable_address);
+	if (gpe_event_info->flags & ACPI_GPE_FORCE_FLAG_MASK) {
+		if (enable_mask & register_bit) {
+			gpe_event_info->expect_enabled = TRUE;
+		} else {
+			gpe_event_info->expect_enabled = FALSE;
+		}
+		return (AE_OK);
+	} else {
+		/* Write the updated enable mask */
+
+		status =
+		    acpi_hw_write(enable_mask,
+				  &gpe_register_info->enable_address);
+	}
 	return (status);
 }
 
@@ -223,6 +236,12 @@ acpi_hw_get_gpe_status(struct acpi_gpe_event_info * gpe_event_info,
 		local_event_status |= ACPI_EVENT_FLAG_HANDLE;
 	}
 
+	/* GPE currently forced? (enabled/disabled by the system manager?) */
+
+	if (gpe_event_info->flags & ACPI_GPE_FORCE_FLAG_MASK) {
+		local_event_status |= ACPI_EVENT_FLAG_FORCE;
+	}
+
 	/* Get the info block for the entire GPE register */
 
 	gpe_register_info = gpe_event_info->register_info;
@@ -243,6 +262,17 @@ acpi_hw_get_gpe_status(struct acpi_gpe_event_info * gpe_event_info,
 		local_event_status |= ACPI_EVENT_FLAG_WAKE_ENABLED;
 	}
 
+	/* GPE currently enabled (enable bit == 1)? */
+
+	status = acpi_hw_read(&in_byte, &gpe_register_info->enable_address);
+	if (ACPI_FAILURE(status)) {
+		return (status);
+	}
+
+	if (register_bit & in_byte) {
+		local_event_status |= ACPI_EVENT_FLAG_ENABLE_SET;
+	}
+
 	/* GPE currently active (status bit == 1)? */
 
 	status = acpi_hw_read(&in_byte, &gpe_register_info->status_address);
@@ -251,7 +281,7 @@ acpi_hw_get_gpe_status(struct acpi_gpe_event_info * gpe_event_info,
 	}
 
 	if (register_bit & in_byte) {
-		local_event_status |= ACPI_EVENT_FLAG_SET;
+		local_event_status |= ACPI_EVENT_FLAG_STATUS_SET;
 	}
 
 	/* Set return value */

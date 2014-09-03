@@ -269,6 +269,53 @@ ACPI_EXPORT_SYMBOL(acpi_set_gpe)
 
 /*******************************************************************************
  *
+ * FUNCTION:    acpi_force_gpe
+ *
+ * PARAMETERS:  gpe_device          - Parent GPE Device. NULL for GPE0/GPE1
+ *              gpe_number          - GPE level within the GPE block
+ *              action              - ACPI_GPE_ENABLE, ACPI_GPE_DISABLE or
+ *                                    ACPI_GPE_RESET_FORCE_FLAGS
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: Unconditionally enable or disable an individual GPE. After
+ *              invoking this function with ACPI_GPE_ENABLE/ACPI_GPE_DISABLE,
+ *              all GPE enabling/disabling operations will be bypassed until
+ *              invoking this function again with ACPI_GPE_RESET_FORCE_FLAGS.
+ *              This API is typically used by the system manager to switch the
+ *              GPE enabling status out side of the drivers' control, thus this
+ *              is normally used for the debugging purposes.
+ *
+ ******************************************************************************/
+acpi_status acpi_force_gpe(acpi_handle gpe_device, u32 gpe_number, u8 action)
+{
+	struct acpi_gpe_event_info *gpe_event_info;
+	acpi_status status;
+	acpi_cpu_flags flags;
+
+	ACPI_FUNCTION_TRACE(acpi_force_gpe);
+
+	flags = acpi_os_acquire_lock(acpi_gbl_gpe_lock);
+
+	/* Ensure that we have a valid GPE number */
+
+	gpe_event_info = acpi_ev_get_gpe_event_info(gpe_device, gpe_number);
+	if (!gpe_event_info) {
+		status = AE_BAD_PARAMETER;
+		goto unlock_and_exit;
+	}
+
+	status = acpi_ev_force_gpe(gpe_event_info, action);
+
+unlock_and_exit:
+	acpi_os_release_lock(acpi_gbl_gpe_lock, flags);
+	return_ACPI_STATUS(status);
+}
+
+ACPI_EXPORT_SYMBOL(acpi_force_gpe)
+
+/*******************************************************************************
+ *
  * FUNCTION:    acpi_mark_gpe_for_wake
  *
  * PARAMETERS:  gpe_device          - Parent GPE Device. NULL for GPE0/GPE1
