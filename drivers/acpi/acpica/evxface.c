@@ -724,6 +724,7 @@ ACPI_EXPORT_SYMBOL(acpi_remove_fixed_event_handler)
  *              gpe_number      - The GPE number within the GPE block
  *              type            - Whether this GPE should be treated as an
  *                                edge- or level-triggered interrupt.
+ *                                GPE flags can also be included.
  *              address         - Address of the handler
  *              context         - Value passed to the handler on each GPE
  *
@@ -746,7 +747,8 @@ acpi_install_gpe_handler(acpi_handle gpe_device,
 
 	/* Parameter validation */
 
-	if ((!address) || (type & ~ACPI_GPE_XRUPT_TYPE_MASK)) {
+	if ((!address) ||
+	    (type & ~(ACPI_GPE_XRUPT_TYPE_MASK | ACPI_GPE_XRUPT_FLAG_MASK))) {
 		return_ACPI_STATUS(AE_BAD_PARAMETER);
 	}
 
@@ -786,6 +788,7 @@ acpi_install_gpe_handler(acpi_handle gpe_device,
 	handler->method_node = gpe_event_info->dispatch.method_node;
 	handler->original_flags = (u8)(gpe_event_info->flags &
 				       (ACPI_GPE_XRUPT_TYPE_MASK |
+					ACPI_GPE_XRUPT_FLAG_MASK |
 					ACPI_GPE_DISPATCH_MASK));
 
 	/*
@@ -801,7 +804,7 @@ acpi_install_gpe_handler(acpi_handle gpe_device,
 
 		/* Sanity check of original type against new type */
 
-		if (type !=
+		if ((type & ACPI_GPE_XRUPT_TYPE_MASK) !=
 		    (u32)(gpe_event_info->flags & ACPI_GPE_XRUPT_TYPE_MASK)) {
 			ACPI_WARNING((AE_INFO,
 				      "GPE type mismatch (level/edge)"));
@@ -814,8 +817,9 @@ acpi_install_gpe_handler(acpi_handle gpe_device,
 
 	/* Setup up dispatch flags to indicate handler (vs. method/notify) */
 
-	gpe_event_info->flags &=
-	    ~(ACPI_GPE_XRUPT_TYPE_MASK | ACPI_GPE_DISPATCH_MASK);
+	gpe_event_info->flags &= ~(ACPI_GPE_XRUPT_TYPE_MASK |
+				   ACPI_GPE_XRUPT_FLAG_MASK |
+				   ACPI_GPE_DISPATCH_MASK);
 	gpe_event_info->flags |= (u8)(type | ACPI_GPE_DISPATCH_HANDLER);
 
 	acpi_os_release_lock(acpi_gbl_gpe_lock, flags);
@@ -893,6 +897,12 @@ acpi_remove_gpe_handler(acpi_handle gpe_device,
 		goto unlock_and_exit;
 	}
 
+	/* Clearing software "status" indication for re-enabling */
+
+	if (gpe_event_info->flags & ACPI_GPE_RAW_HANDLER) {
+		acpi_ev_clear_gpe_raw_status(gpe_event_info);
+	}
+
 	/* Remove the handler */
 
 	handler = gpe_event_info->dispatch.handler;
@@ -901,7 +911,8 @@ acpi_remove_gpe_handler(acpi_handle gpe_device,
 
 	gpe_event_info->dispatch.method_node = handler->method_node;
 	gpe_event_info->flags &=
-	    ~(ACPI_GPE_XRUPT_TYPE_MASK | ACPI_GPE_DISPATCH_MASK);
+	    ~(ACPI_GPE_XRUPT_TYPE_MASK | ACPI_GPE_XRUPT_FLAG_MASK |
+	      ACPI_GPE_DISPATCH_MASK);
 	gpe_event_info->flags |= handler->original_flags;
 
 	/*
@@ -912,13 +923,16 @@ acpi_remove_gpe_handler(acpi_handle gpe_device,
 	if (((handler->original_flags & ACPI_GPE_DISPATCH_METHOD) ||
 	     (handler->original_flags & ACPI_GPE_DISPATCH_NOTIFY)) &&
 	    handler->originally_enabled) {
+
+		/* Clearing hardware "status" indication for re-enabling */
+
 		(void)acpi_ev_add_gpe_reference(gpe_event_info);
 	}
 
 	acpi_os_release_lock(acpi_gbl_gpe_lock, flags);
 	(void)acpi_ut_release_mutex(ACPI_MTX_EVENTS);
 
-	/* Make sure all deferred GPE tasks are completed */
+	/* Make sure all GPE handlers and deferred GPE tasks are completed */
 
 	acpi_os_wait_events_complete();
 

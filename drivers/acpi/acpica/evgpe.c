@@ -56,6 +56,41 @@ static void ACPI_SYSTEM_XFACE acpi_ev_asynch_enable_gpe(void *context);
 
 /*******************************************************************************
  *
+ * FUNCTION:    acpi_ev_clear_gpe_raw_status
+ *
+ * PARAMETERS:  gpe_event_info          - GPE to update
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: Update GPE register status mask to clear the saved raw GPE
+ *              status indication.
+ *
+ ******************************************************************************/
+
+acpi_status
+acpi_ev_clear_gpe_raw_status(struct acpi_gpe_event_info *gpe_event_info)
+{
+	struct acpi_gpe_register_info *gpe_register_info;
+	u32 register_bit;
+
+	ACPI_FUNCTION_TRACE(ev_clear_gpe_raw_status);
+
+	gpe_register_info = gpe_event_info->register_info;
+	if (!gpe_register_info) {
+		return_ACPI_STATUS(AE_NOT_EXIST);
+	}
+
+	register_bit = acpi_hw_get_gpe_register_bit(gpe_event_info);
+
+	/* Clear the status bit */
+
+	ACPI_CLEAR_BIT(gpe_register_info->enabled_status, register_bit);
+
+	return_ACPI_STATUS(AE_OK);
+}
+
+/*******************************************************************************
+ *
  * FUNCTION:    acpi_ev_update_gpe_enable_mask
  *
  * PARAMETERS:  gpe_event_info          - GPE to update
@@ -114,11 +149,14 @@ acpi_status acpi_ev_enable_gpe(struct acpi_gpe_event_info *gpe_event_info)
 
 	ACPI_FUNCTION_TRACE(ev_enable_gpe);
 
-	/* Clear the GPE (of stale events) */
+	if (!(gpe_event_info->flags & ACPI_GPE_RAW_HANDLER)) {
 
-	status = acpi_hw_clear_gpe(gpe_event_info);
-	if (ACPI_FAILURE(status)) {
-		return_ACPI_STATUS(status);
+		/* Clear the GPE (of stale events) */
+
+		status = acpi_hw_clear_gpe(gpe_event_info);
+		if (ACPI_FAILURE(status)) {
+			return_ACPI_STATUS(status);
+		}
 	}
 
 	/* Enable the requested GPE */
@@ -329,6 +367,10 @@ u32 acpi_ev_gpe_detect(struct acpi_gpe_xrupt_info *gpe_xrupt_list)
 	acpi_status status;
 	struct acpi_gpe_block_info *gpe_block;
 	struct acpi_gpe_register_info *gpe_register_info;
+	struct acpi_gpe_event_info *gpe_event_info;
+	struct acpi_gpe_handler_info *gpe_handler_info;
+	struct acpi_namespace_node *gpe_device;
+	u32 gpe_number;
 	u32 int_status = ACPI_INTERRUPT_NOT_HANDLED;
 	u8 enabled_status_byte;
 	u32 status_reg;
@@ -428,19 +470,124 @@ u32 acpi_ev_gpe_detect(struct acpi_gpe_xrupt_info *gpe_xrupt_list)
 			/* Now look at the individual GPEs in this byte register */
 
 			for (j = 0; j < ACPI_GPE_REGISTER_WIDTH; j++) {
+				gpe_event_info =
+				    &gpe_block->
+				    event_info[((acpi_size) i *
+						ACPI_GPE_REGISTER_WIDTH) + j];
 
 				/* Examine one GPE bit */
 
 				if (enabled_status_byte & (1 << j)) {
-					/*
-					 * Found an active GPE. Dispatch the event to a handler
-					 * or method.
-					 */
+
+					/* Found an active GPE */
+
+					acpi_gpe_count++;
+
+					/* Invoke global event handler if present */
+
+					if (acpi_gbl_global_event_handler) {
+						acpi_gbl_global_event_handler
+						    (ACPI_EVENT_TYPE_GPE,
+						     gpe_block->node,
+						     j +
+						     gpe_register_info->
+						     base_gpe_number,
+						     acpi_gbl_global_event_handler_context);
+					}
+
+					if (gpe_event_info->
+					    flags & ACPI_GPE_RAW_HANDLER) {
+
+						/* Prepare handling for a raw handler */
+
+						gpe_register_info->
+						    enabled_status |= (1 << j);
+					} else {
+						/*
+						 * Dispatch the event to a standard handler or
+						 * method.
+						 */
+						int_status |=
+						    acpi_ev_gpe_dispatch
+						    (gpe_block->node,
+						     gpe_event_info,
+						     j +
+						     gpe_register_info->
+						     base_gpe_number);
+					}
+				}
+			}
+		}
+
+		gpe_block = gpe_block->next;
+	}
+
+	/* Examine all GPE blocks attached to this interrupt level */
+
+	gpe_block = gpe_xrupt_list->gpe_block_list_head;
+	while (gpe_block) {
+
+		/* Find all currently active events for raw GPE handlers */
+
+		for (i = 0; i < gpe_block->register_count; i++) {
+
+			/* Get the next saved status/enable pair */
+
+			gpe_register_info = &gpe_block->register_info[i];
+
+			for (j = 0; j < ACPI_GPE_REGISTER_WIDTH; j++) {
+				gpe_event_info =
+				    &gpe_block->
+				    event_info[((acpi_size) i *
+						ACPI_GPE_REGISTER_WIDTH) + j];
+
+				/*
+				 * Examine one GPE bit for a raw handler. And if an active
+				 * GPE is found, dispatch the event to a raw handler. The
+				 * raw handler is invoked without GPE lock held because:
+				 * 1. Whether the GPE should be enabled/disabled/cleared is
+				 *    actually determined by the GPE driver, thus the GPE
+				 *    operations should be performed with the GPE driver's
+				 *    specific lock held.
+				 * 2. Since the GPE APIs need to be invoked with the GPE
+				 *    driver's specific lock held, we need to unlock here
+				 *    to avoid recurisive locking or reversed ordered
+				 *    locking.
+				 * Before invoking the handler, we need to protect the
+				 * objects passed to the handler to avoid invalid accesses
+				 * after destructing them. But we needn't do this for
+				 * namespace node and GPE handler because they are expected
+				 * to be protected by other mechanisms:
+				 * 1. Namespace node is expected to always exist after
+				 *    loading a table.
+				 * 2. GPE handler is expected to be flushed by
+				 *    acpi_os_wait_events_complete() before destruction.
+				 */
+				if (gpe_event_info->flags & ACPI_GPE_RAW_HANDLER
+				    && gpe_register_info->
+				    enabled_status & (1 << j)) {
+
+					/* Clear the raw status bit */
+
+					gpe_register_info->enabled_status &=
+					    ~(1 << j);
+
+					gpe_device = gpe_block->node;
+					gpe_handler_info =
+					    gpe_event_info->dispatch.handler;
+					gpe_number =
+					    j +
+					    gpe_register_info->base_gpe_number;
+
+					acpi_os_release_lock(acpi_gbl_gpe_lock,
+							     flags);
 					int_status |=
-					    acpi_ev_gpe_dispatch(gpe_block->
-								 node,
-								 &gpe_block->
-								 event_info[((acpi_size) i * ACPI_GPE_REGISTER_WIDTH) + j], j + gpe_register_info->base_gpe_number);
+					    gpe_handler_info->
+					    address(gpe_device, gpe_number,
+						    gpe_handler_info->context);
+					flags =
+					    acpi_os_acquire_lock
+					    (acpi_gbl_gpe_lock);
 				}
 			}
 		}
@@ -677,15 +824,6 @@ acpi_ev_gpe_dispatch(struct acpi_namespace_node *gpe_device,
 	u32 return_value;
 
 	ACPI_FUNCTION_TRACE(ev_gpe_dispatch);
-
-	/* Invoke global event handler if present */
-
-	acpi_gpe_count++;
-	if (acpi_gbl_global_event_handler) {
-		acpi_gbl_global_event_handler(ACPI_EVENT_TYPE_GPE, gpe_device,
-					      gpe_number,
-					      acpi_gbl_global_event_handler_context);
-	}
 
 	/*
 	 * Always disable the GPE so that it does not keep firing before

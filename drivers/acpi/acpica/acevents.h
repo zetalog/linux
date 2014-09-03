@@ -80,6 +80,9 @@ acpi_status acpi_ev_remove_global_lock_handler(void);
 u32 acpi_ev_gpe_detect(struct acpi_gpe_xrupt_info *gpe_xrupt_list);
 
 acpi_status
+acpi_ev_clear_gpe_raw_status(struct acpi_gpe_event_info *gpe_event_info);
+
+acpi_status
 acpi_ev_update_gpe_enable_mask(struct acpi_gpe_event_info *gpe_event_info);
 
 acpi_status acpi_ev_enable_gpe(struct acpi_gpe_event_info *gpe_event_info);
