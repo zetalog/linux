@@ -161,6 +161,13 @@ ACPI_GLOBAL(u32, acpi_gbl_owner_id_mask[ACPI_NUM_OWNERID_MASKS]);
 ACPI_GLOBAL(u8, acpi_gbl_last_owner_id_index);
 ACPI_GLOBAL(u8, acpi_gbl_next_owner_id_offset);
 
+/* Garbage collection support */
+
+ACPI_INIT_GLOBAL(union acpi_operand_object *, acpi_gbl_garbage_operands, NULL);
+ACPI_INIT_GLOBAL(u8, acpi_gbl_gc_thread_created, FALSE);
+ACPI_GLOBAL(acpi_mutex, acpi_gbl_gc_handshake_mutex);
+ACPI_GLOBAL(u8, acpi_gbl_gc_mutex_acquired);
+
 /* Initialization sequencing */
 
 ACPI_GLOBAL(u8, acpi_gbl_reg_methods_executed);

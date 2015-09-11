@@ -290,7 +290,7 @@ acpi_remove_notify_handler(acpi_handle device,
 
 				/* Make sure all deferred notify tasks are completed */
 
-				acpi_os_wait_events_complete();
+				acpi_ut_flush_object_references();
 			}
 		}
 
@@ -350,7 +350,7 @@ acpi_remove_notify_handler(acpi_handle device,
 
 			/* Make sure all deferred notify tasks are completed */
 
-			acpi_os_wait_events_complete();
+			acpi_ut_flush_object_references();
 			acpi_ut_remove_reference(handler_obj);
 		}
 	}
@@ -1014,7 +1014,7 @@ acpi_remove_gpe_handler(acpi_handle gpe_device,
 
 	/* Make sure all deferred GPE tasks are completed */
 
-	acpi_os_wait_events_complete();
+	acpi_ut_flush_object_references();
 
 	/* Now we can free the handler object */
 

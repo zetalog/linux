@@ -98,6 +98,12 @@ acpi_status acpi_ut_mutex_initialize(void)
 		return_ACPI_STATUS(status);
 	}
 
+	status = acpi_os_create_mutex(&acpi_gbl_gc_handshake_mutex);
+	if (ACPI_FAILURE(status)) {
+		return_ACPI_STATUS(status);
+	}
+	acpi_gbl_gc_mutex_acquired = FALSE;
+
 	/* Mutex for _OSI support */
 
 	status = acpi_os_create_mutex(&acpi_gbl_osi_mutex);

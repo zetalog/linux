@@ -324,6 +324,8 @@ void acpi_ut_add_reference(union acpi_operand_object *object);
 
 void acpi_ut_remove_reference(union acpi_operand_object *object);
 
+void acpi_ut_flush_object_references(void);
+
 void acpi_ut_delete_internal_package_object(union acpi_operand_object *object);
 
 void acpi_ut_delete_internal_simple_object(union acpi_operand_object *object);
