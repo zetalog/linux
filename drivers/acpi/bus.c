@@ -982,8 +982,6 @@ static int __init acpi_bus_init(void)
 	int result;
 	acpi_status status;
 
-	acpi_os_initialize1();
-
 	status = acpi_enable_subsystem(ACPI_NO_ACPI_ENABLE);
 	if (ACPI_FAILURE(status)) {
 		printk(KERN_ERR PREFIX
@@ -1084,6 +1082,8 @@ static int __init acpi_init(void)
 		printk(KERN_WARNING "%s: kset create error\n", __func__);
 		acpi_kobj = NULL;
 	}
+
+	acpi_os_initialize1();
 
 	init_acpi_device_notify();
 	result = acpi_bus_init();

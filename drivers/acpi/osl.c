@@ -40,6 +40,7 @@
 #include <linux/list.h>
 #include <linux/jiffies.h>
 #include <linux/semaphore.h>
+#include <linux/kthread.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -79,8 +80,10 @@ static acpi_osd_handler acpi_irq_handler;
 static void *acpi_irq_context;
 static struct workqueue_struct *kacpid_wq;
 static struct workqueue_struct *kacpi_notify_wq;
+static struct workqueue_struct *kacpi_gc_wq;
 static struct workqueue_struct *kacpi_hotplug_wq;
 static bool acpi_os_initialized;
+static struct acpi_os_dpc acpi_gc_thread;
 
 /*
  * This list of permanent mappings is for memory that may be accessed from
@@ -1100,6 +1103,16 @@ static void acpi_os_execute_deferred(struct work_struct *work)
 	kfree(dpc);
 }
 
+static int acpi_os_threaded_dpc(void *context)
+{
+	struct acpi_os_dpc *dpc = (struct acpi_os_dpc *)context;
+
+	pr_info("ACPI: GC thread is online.\n");
+	dpc->function(dpc->context);
+	pr_info("ACPI: GC thread is offline.\n");
+	return 0;
+}
+
 /*******************************************************************************
  *
  * FUNCTION:    acpi_os_execute
@@ -1122,9 +1135,26 @@ acpi_status acpi_os_execute(acpi_execute_type type,
 	struct acpi_os_dpc *dpc;
 	struct workqueue_struct *queue;
 	int ret;
+	struct task_struct *t;
 	ACPI_DEBUG_PRINT((ACPI_DB_EXEC,
 			  "Scheduling function [%p(%p)] for deferred execution.\n",
 			  function, context));
+
+        if (type == OSL_GC_THREAD) {
+		if (acpi_os_initialized) {
+			acpi_gc_thread.function = function;
+			acpi_gc_thread.context = context;
+			t = kthread_create(acpi_os_threaded_dpc,
+					   (void *)&acpi_gc_thread, "kacpi_gc_thread");
+			if (IS_ERR(t)) {
+				pr_err("Failed to create GC thread.\n");
+				status = AE_ERROR;
+			} else
+				wake_up_process(t);
+		} else
+			status = AE_NO_MEMORY;
+		goto out_thread;
+	}
 
 	/*
 	 * Allocate/initialize DPC structure.  Note that this memory will be
@@ -1150,10 +1180,19 @@ acpi_status acpi_os_execute(acpi_execute_type type,
 	if (type == OSL_NOTIFY_HANDLER) {
 		queue = kacpi_notify_wq;
 		INIT_WORK(&dpc->work, acpi_os_execute_deferred);
-	} else {
+	} else if (type == OSL_GPE_HANDLER) {
 		queue = kacpid_wq;
 		INIT_WORK(&dpc->work, acpi_os_execute_deferred);
+	} else if (type == OSL_GC_HANDLER) {
+		queue = kacpi_gc_wq;
+		INIT_WORK(&dpc->work, acpi_os_execute_deferred);
+	} else {
+		pr_err("Unsupported os_execute type %d.\n", type);
+		status = AE_ERROR;
 	}
+
+	if (ACPI_FAILURE(status))
+		goto err_workqueue;
 
 	/*
 	 * On some machines, a software-initiated SMI causes corruption unless
@@ -1163,13 +1202,15 @@ acpi_status acpi_os_execute(acpi_execute_type type,
 	 * queueing on CPU 0.
 	 */
 	ret = queue_work_on(0, queue, &dpc->work);
-
 	if (!ret) {
 		printk(KERN_ERR PREFIX
 			  "Call to queue_work() failed.\n");
 		status = AE_ERROR;
-		kfree(dpc);
 	}
+err_workqueue:
+	if (ACPI_FAILURE(status))
+		kfree(dpc);
+out_thread:
 	return status;
 }
 EXPORT_SYMBOL(acpi_os_execute);
@@ -1184,6 +1225,7 @@ void acpi_os_wait_events_complete(void)
 		synchronize_hardirq(acpi_gbl_FADT.sci_interrupt);
 	flush_workqueue(kacpid_wq);
 	flush_workqueue(kacpi_notify_wq);
+	flush_workqueue(kacpi_gc_wq);
 }
 
 struct acpi_hp_work {
@@ -1839,18 +1881,20 @@ acpi_status __init acpi_os_initialize(void)
 		rv = acpi_os_map_generic_address(&acpi_gbl_FADT.reset_register);
 		pr_debug(PREFIX "%s: map reset_reg status %d\n", __func__, rv);
 	}
-	acpi_os_initialized = true;
 
 	return AE_OK;
 }
 
 acpi_status __init acpi_os_initialize1(void)
 {
+	acpi_os_initialized = true;
 	kacpid_wq = alloc_workqueue("kacpid", 0, 1);
 	kacpi_notify_wq = alloc_workqueue("kacpi_notify", 0, 1);
+	kacpi_gc_wq = alloc_workqueue("kacpi_gc_handler", 0, 1);
 	kacpi_hotplug_wq = alloc_ordered_workqueue("kacpi_hotplug", 0);
 	BUG_ON(!kacpid_wq);
 	BUG_ON(!kacpi_notify_wq);
+	BUG_ON(!kacpi_gc_wq);
 	BUG_ON(!kacpi_hotplug_wq);
 	acpi_install_interface_handler(acpi_osi_handler);
 	acpi_osi_setup_late();
@@ -1873,6 +1917,7 @@ acpi_status acpi_os_terminate(void)
 
 	destroy_workqueue(kacpid_wq);
 	destroy_workqueue(kacpi_notify_wq);
+	destroy_workqueue(kacpi_gc_wq);
 	destroy_workqueue(kacpi_hotplug_wq);
 
 	return AE_OK;
