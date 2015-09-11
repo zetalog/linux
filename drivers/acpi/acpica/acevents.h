@@ -64,6 +64,10 @@ acpi_status
 acpi_ev_queue_notify_request(struct acpi_namespace_node *node,
 			     u32 notify_value);
 
+void
+acpi_ev_delete_notify_handlers(union acpi_operand_object *object,
+			       u32 handler_type, acpi_notify_handler handler);
+
 /*
  * evglock - Global Lock support
  */

@@ -179,6 +179,14 @@ acpi_ut_delete_internal_obj(union acpi_operand_object *object, u8 asynchronous)
 			acpi_ut_remove_reference(handler_desc);
 			handler_desc = next_desc;
 		}
+
+		/*lint -fallthrough */
+
+	case ACPI_TYPE_POWER:
+
+		/* Update the notify objects for these types (if present) */
+
+		acpi_ev_delete_notify_handlers(object, ACPI_ALL_NOTIFY, NULL);
 		break;
 
 	case ACPI_TYPE_MUTEX:
@@ -730,7 +738,6 @@ acpi_ut_update_object_reference(union acpi_operand_object *object, u16 action)
 	acpi_status status = AE_OK;
 	union acpi_generic_state *state_list = NULL;
 	union acpi_operand_object *next_object = NULL;
-	union acpi_operand_object *prev_object;
 	union acpi_generic_state *state;
 	u32 i;
 
@@ -751,27 +758,6 @@ acpi_ut_update_object_reference(union acpi_operand_object *object, u16 action)
 		 * Different object types have different subobjects.
 		 */
 		switch (object->common.type) {
-		case ACPI_TYPE_DEVICE:
-		case ACPI_TYPE_PROCESSOR:
-		case ACPI_TYPE_POWER:
-		case ACPI_TYPE_THERMAL:
-			/*
-			 * Update the notify objects for these types (if present)
-			 * Two lists, system and device notify handlers.
-			 */
-			for (i = 0; i < ACPI_NUM_NOTIFY_TYPES; i++) {
-				prev_object =
-				    object->common_notify.notify_list[i];
-				while (prev_object) {
-					next_object =
-					    prev_object->notify.next[i];
-					acpi_ut_update_ref_count(prev_object,
-								 action);
-					prev_object = next_object;
-				}
-			}
-			break;
-
 		case ACPI_TYPE_PACKAGE:
 			/*
 			 * We must update all the sub-objects of the package,

@@ -297,12 +297,30 @@ union acpi_generic_state *acpi_ut_create_control_state(void)
 
 void acpi_ut_delete_generic_state(union acpi_generic_state *state)
 {
+	union acpi_operand_object *handler_list_head;
+
 	ACPI_FUNCTION_ENTRY();
 
 	/* Ignore null state */
 
-	if (state) {
-		(void)acpi_os_release_object(acpi_gbl_state_cache, state);
+	if (!state) {
+		return;
 	}
+
+	switch (state->common.descriptor_type) {
+	case ACPI_DESC_TYPE_STATE_NOTIFY:
+
+		if (state->notify.handler_list_head) {
+			handler_list_head = state->notify.handler_list_head;
+			state->notify.handler_list_head = NULL;
+			acpi_ut_remove_reference(handler_list_head);
+		}
+		break;
+
+	default:
+
+		break;
+	}
+	(void)acpi_os_release_object(acpi_gbl_state_cache, state);
 	return;
 }

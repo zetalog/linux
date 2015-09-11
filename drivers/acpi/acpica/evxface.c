@@ -208,14 +208,9 @@ acpi_install_notify_handler(acpi_handle device,
 			handler_obj->notify.next[i] =
 			    obj_desc->common_notify.notify_list[i];
 
+			acpi_ut_add_reference(handler_obj);
 			obj_desc->common_notify.notify_list[i] = handler_obj;
 		}
-	}
-
-	/* Add an extra reference if handler was installed in both lists */
-
-	if (handler_type == ACPI_ALL_NOTIFY) {
-		acpi_ut_add_reference(handler_obj);
 	}
 
 unlock_and_exit:
@@ -248,8 +243,6 @@ acpi_remove_notify_handler(acpi_handle device,
 	struct acpi_namespace_node *node =
 	    ACPI_CAST_PTR(struct acpi_namespace_node, device);
 	union acpi_operand_object *obj_desc;
-	union acpi_operand_object *handler_obj;
-	union acpi_operand_object *previous_handler_obj;
 	acpi_status status = AE_OK;
 	u32 i;
 
@@ -276,8 +269,10 @@ acpi_remove_notify_handler(acpi_handle device,
 				if (!acpi_gbl_global_notify[i].handler ||
 				    (acpi_gbl_global_notify[i].handler !=
 				     handler)) {
-					status = AE_NOT_EXIST;
-					goto unlock_and_exit;
+					(void)
+					    acpi_ut_release_mutex
+					    (ACPI_MTX_NAMESPACE);
+					return_ACPI_STATUS(status);
 				}
 
 				ACPI_DEBUG_PRINT((ACPI_DB_INFO,
@@ -310,56 +305,19 @@ acpi_remove_notify_handler(acpi_handle device,
 		return_ACPI_STATUS(AE_NOT_EXIST);
 	}
 
-	/* Internal object exists. Find the handler and remove it */
+	/* Delete notify handlers */
 
-	for (i = 0; i < ACPI_NUM_NOTIFY_TYPES; i++) {
-		if (handler_type & (i + 1)) {
-			status = acpi_ut_acquire_mutex(ACPI_MTX_NAMESPACE);
-			if (ACPI_FAILURE(status)) {
-				return_ACPI_STATUS(status);
-			}
-
-			handler_obj = obj_desc->common_notify.notify_list[i];
-			previous_handler_obj = NULL;
-
-			/* Attempt to find the handler in the handler list */
-
-			while (handler_obj &&
-			       (handler_obj->notify.handler != handler)) {
-				previous_handler_obj = handler_obj;
-				handler_obj = handler_obj->notify.next[i];
-			}
-
-			if (!handler_obj) {
-				status = AE_NOT_EXIST;
-				goto unlock_and_exit;
-			}
-
-			/* Remove the handler object from the list */
-
-			if (previous_handler_obj) {	/* Handler is not at the list head */
-				previous_handler_obj->notify.next[i] =
-				    handler_obj->notify.next[i];
-			} else {	/* Handler is at the list head */
-
-				obj_desc->common_notify.notify_list[i] =
-				    handler_obj->notify.next[i];
-			}
-
-			(void)acpi_ut_release_mutex(ACPI_MTX_NAMESPACE);
-
-			/* Make sure all deferred notify tasks are completed */
-
-			acpi_ut_flush_object_references();
-			acpi_ut_remove_reference(handler_obj);
-		}
+	status = acpi_ut_acquire_mutex(ACPI_MTX_NAMESPACE);
+	if (ACPI_FAILURE(status)) {
+		return_ACPI_STATUS(status);
 	}
+	acpi_ev_delete_notify_handlers(obj_desc, handler_type, handler);
+	(void)acpi_ut_acquire_mutex(ACPI_MTX_NAMESPACE);
 
-	return_ACPI_STATUS(status);
+	/* Make sure all deferred notify tasks are completed */
 
-unlock_and_exit:
-	(void)acpi_ut_release_mutex(ACPI_MTX_NAMESPACE);
-	return_ACPI_STATUS(status);
+	acpi_ut_flush_object_references();
+	return_ACPI_STATUS(AE_OK);
 }
 
 ACPI_EXPORT_SYMBOL(acpi_remove_notify_handler)
