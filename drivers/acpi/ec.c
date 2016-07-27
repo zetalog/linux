@@ -104,6 +104,7 @@ enum ec_command {
 #define ACPI_EC_MAX_QUERIES	16	/* Maximum number of parallel queries */
 
 enum {
+	EC_FLAGS_QUERY_ENABLED,		/* Query is enabled */
 	EC_FLAGS_QUERY_PENDING,		/* Query is pending */
 	EC_FLAGS_QUERY_GUARDING,	/* Guard for SCI_EVT check */
 	EC_FLAGS_GPE_HANDLER_INSTALLED,	/* GPE handler installed */
@@ -144,6 +145,10 @@ static unsigned int ec_event_clearing __read_mostly = ACPI_EC_EVT_TIMING_QUERY;
 static unsigned int ec_storm_threshold  __read_mostly = 8;
 module_param(ec_storm_threshold, uint, 0644);
 MODULE_PARM_DESC(ec_storm_threshold, "Maxim false GPE numbers not considered as GPE storm");
+
+static bool ec_freeze_events __read_mostly = true;
+module_param(ec_freeze_events, bool, 0644);
+MODULE_PARM_DESC(ec_freeze_events, "Disabling event handling during suspend/resume");
 
 struct acpi_ec_query_handler {
 	struct list_head node;
@@ -429,7 +434,8 @@ static bool acpi_ec_submit_flushable_request(struct acpi_ec *ec)
 
 static void acpi_ec_submit_query(struct acpi_ec *ec)
 {
-	if (!test_and_set_bit(EC_FLAGS_QUERY_PENDING, &ec->flags)) {
+	if (test_bit(EC_FLAGS_QUERY_ENABLED, &ec->flags) &&
+	    !test_and_set_bit(EC_FLAGS_QUERY_PENDING, &ec->flags)) {
 		ec_dbg_evt("Command(%s) submitted/blocked",
 			   acpi_ec_cmd_string(ACPI_EC_COMMAND_QUERY));
 		ec->nr_pending_queries++;
@@ -444,6 +450,68 @@ static void acpi_ec_complete_query(struct acpi_ec *ec)
 		ec_dbg_evt("Command(%s) unblocked",
 			   acpi_ec_cmd_string(ACPI_EC_COMMAND_QUERY));
 	}
+}
+
+static bool acpi_ec_query_flushed(struct acpi_ec *ec)
+{
+	bool flushed;
+	unsigned long flags;
+
+	spin_lock_irqsave(&ec->lock, flags);
+	flushed = !ec->nr_pending_queries;
+	spin_unlock_irqrestore(&ec->lock, flags);
+
+	return flushed;
+}
+
+/*
+ * Process _Q events that might have accumulated in the EC.
+ * Run with locked ec mutex.
+ */
+static void acpi_ec_clear(struct acpi_ec *ec)
+{
+	int i, status;
+	u8 value = 0;
+
+	for (i = 0; i < ACPI_EC_CLEAR_MAX; i++) {
+		status = acpi_ec_query(ec, &value);
+		if (status || !value)
+			break;
+	}
+	if (unlikely(i == ACPI_EC_CLEAR_MAX))
+		pr_warn("Warning: Maximum of %d stale EC events cleared\n", i);
+	else
+		pr_info("%d stale EC events cleared\n", i);
+}
+
+static void acpi_ec_disable_event(struct acpi_ec *ec, bool flushing)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&ec->lock, flags);
+	clear_bit(EC_FLAGS_QUERY_ENABLED, &ec->flags);
+	ec_log_drv("event blocked");
+	spin_unlock_irqrestore(&ec->lock, flags);
+	if (flushing && ec_query_wq) {
+		wait_event(ec->wait, acpi_ec_query_flushed(ec));
+		flush_workqueue(ec_query_wq);
+	}
+}
+
+static void acpi_ec_enable_event(struct acpi_ec *ec)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&ec->lock, flags);
+	set_bit(EC_FLAGS_QUERY_ENABLED, &ec->flags);
+	ec_log_drv("event unblocked");
+	/* Force a re-check of SCI_EVT to drain the events */
+	advance_transaction(ec);
+	spin_unlock_irqrestore(&ec->lock, flags);
+
+	/* Drain additional events if hardware requires that */
+	if (EC_FLAGS_CLEAR_ON_RESUME)
+		acpi_ec_clear(ec);
 }
 
 static bool acpi_ec_guard_event(struct acpi_ec *ec)
@@ -832,27 +900,6 @@ acpi_handle ec_get_handle(void)
 }
 EXPORT_SYMBOL(ec_get_handle);
 
-/*
- * Process _Q events that might have accumulated in the EC.
- * Run with locked ec mutex.
- */
-static void acpi_ec_clear(struct acpi_ec *ec)
-{
-	int i, status;
-	u8 value = 0;
-
-	for (i = 0; i < ACPI_EC_CLEAR_MAX; i++) {
-		status = acpi_ec_query(ec, &value);
-		if (status || !value)
-			break;
-	}
-
-	if (unlikely(i == ACPI_EC_CLEAR_MAX))
-		pr_warn("Warning: Maximum of %d stale EC events cleared\n", i);
-	else
-		pr_info("%d stale EC events cleared\n", i);
-}
-
 static void acpi_ec_start(struct acpi_ec *ec, bool resuming)
 {
 	unsigned long flags;
@@ -918,20 +965,6 @@ void acpi_ec_block_transactions(void)
 }
 
 void acpi_ec_unblock_transactions(void)
-{
-	struct acpi_ec *ec = first_ec;
-
-	if (!ec)
-		return;
-
-	/* Allow transactions to be carried out again */
-	acpi_ec_start(ec, true);
-
-	if (EC_FLAGS_CLEAR_ON_RESUME)
-		acpi_ec_clear(ec);
-}
-
-void acpi_ec_unblock_transactions_early(void)
 {
 	/*
 	 * Allow transactions to happen again (this function is called from
@@ -1234,13 +1267,13 @@ static struct acpi_ec *make_acpi_ec(void)
 
 	if (!ec)
 		return NULL;
-	ec->flags = 1 << EC_FLAGS_QUERY_PENDING;
 	mutex_init(&ec->mutex);
 	init_waitqueue_head(&ec->wait);
 	INIT_LIST_HEAD(&ec->list);
 	spin_lock_init(&ec->lock);
 	INIT_WORK(&ec->work, acpi_ec_event_handler);
 	ec->timestamp = jiffies;
+	acpi_ec_disable_event(ec, false);
 	return ec;
 }
 
@@ -1421,11 +1454,7 @@ static int acpi_ec_add(struct acpi_device *device)
 	acpi_walk_dep_device_list(ec->handle);
 
 	/* EC is fully operational, allow queries */
-	clear_bit(EC_FLAGS_QUERY_PENDING, &ec->flags);
-
-	/* Clear stale _Q events if hardware might require that */
-	if (EC_FLAGS_CLEAR_ON_RESUME)
-		acpi_ec_clear(ec);
+	acpi_ec_enable_event(ec);
 	return ret;
 }
 
@@ -1665,10 +1694,30 @@ static int acpi_ec_resume_noirq(struct device *dev)
 	acpi_ec_leave_noirq(ec);
 	return 0;
 }
+
+static int acpi_ec_suspend(struct device *dev)
+{
+	struct acpi_ec *ec =
+		acpi_driver_data(to_acpi_device(dev));
+
+	if (ec_freeze_events)
+		acpi_ec_disable_event(ec, true);
+	return 0;
+}
+
+static int acpi_ec_resume(struct device *dev)
+{
+	struct acpi_ec *ec =
+		acpi_driver_data(to_acpi_device(dev));
+
+	acpi_ec_enable_event(ec);
+	return 0;
+}
 #endif
 
 static const struct dev_pm_ops acpi_ec_pm = {
 	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(acpi_ec_suspend_noirq, acpi_ec_resume_noirq)
+	SET_SYSTEM_SLEEP_PM_OPS(acpi_ec_suspend, acpi_ec_resume)
 };
 
 static int param_set_event_clearing(const char *val, struct kernel_param *kp)
