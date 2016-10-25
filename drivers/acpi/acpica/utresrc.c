@@ -416,7 +416,6 @@ acpi_ut_walk_aml_resources(struct acpi_walk_state *walk_state,
 	u8 *end_aml;
 	u8 resource_index;
 	u32 length;
-	acpi_size this_aml_length = 0;
 	u32 offset = 0;
 	u8 end_tag[2] = { 0x79, 0x00 };
 
@@ -484,7 +483,7 @@ acpi_ut_walk_aml_resources(struct acpi_walk_state *walk_state,
 
 			/* Check if buffer is defined to be longer than the resource length */
 
-			if (aml_length > this_aml_length) {
+			if (aml_length > (offset + length)) {
 				return_ACPI_STATUS(AE_AML_NO_RESOURCE_END_TAG);
 			}
 
@@ -493,7 +492,6 @@ acpi_ut_walk_aml_resources(struct acpi_walk_state *walk_state,
 			return_ACPI_STATUS(AE_OK);
 		}
 
-		this_aml_length += length;
 		aml += length;
 		offset += length;
 	}
