@@ -974,6 +974,10 @@ ACPI_EXTERNAL_RETURN_STATUS(acpi_status
 						     **out_table,
 						     acpi_size *tbl_size))
 
+ACPI_EXTERNAL_RETURN_VOID(void
+			  early_acpi_os_unmap_memory(void __iomem * virt,
+						     acpi_size size))
+
 ACPI_EXTERNAL_RETURN_STATUS(acpi_status
 			    acpi_get_data_full(acpi_handle object,
 					       acpi_object_handler handler,
