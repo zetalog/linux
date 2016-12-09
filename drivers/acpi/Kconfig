@@ -333,6 +333,17 @@ config ACPI_TABLE_UPGRADE
 	  initrd, therefore it's safe to say Y.
 	  See Documentation/acpi/initrd_table_override.txt for details
 
+config ACPI_ERROR_ONCE
+	bool "Print ACPICA error messages only once"
+	default n
+	help
+	  This option converts all runtime ACPICA errors into messages that
+	  can only appear in the kernel log once. It is useless for normal
+	  kernel build but is required by some users where ACPI issues are
+	  triggering endless kernel logs, filling up the entire
+	  filesystems.
+	  If you are unsure, say N.
+
 config ACPI_DEBUG
 	bool "Debug Statements"
 	default n

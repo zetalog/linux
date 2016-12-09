@@ -74,4 +74,19 @@
 
 #define COMPILER_VA_MACRO               1
 
+/* GCC supports _ONCE macros */
+
+#define ACPI_DO_ONCE(plist)                             \
+({                                                      \
+	static u8                       __acpi_error_once__ = FALSE; \
+	if (!__acpi_error_once__)                           \
+	{                                                   \
+		if (acpi_gbl_enable_do_once_macro)              \
+		{                                               \
+			__acpi_error_once__ = TRUE;                 \
+		}                                               \
+		plist;                                          \
+	}                                                   \
+})
+
 #endif				/* __ACGCC_H__ */

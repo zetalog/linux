@@ -77,6 +77,10 @@
 #define ACPI_MUTEX_DEBUG
 #endif
 
+#ifdef CONFIG_ACPI_ERROR_ONCE
+#define ACPI_USE_DO_ONCE_MACRO 1
+#endif
+
 #include <linux/string.h>
 #include <linux/kernel.h>
 #include <linux/ctype.h>

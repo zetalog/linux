@@ -393,8 +393,13 @@
  * the plist contains a set of parens to allow variable-length lists.
  * These macros are used for both the debug and non-debug versions of the code.
  */
+#if defined (ACPI_USE_DO_ONCE_MACRO) && defined (ACPI_DO_ONCE)
+#define ACPI_ERROR_NAMESPACE(s, e)          ACPI_DO_ONCE(acpi_ut_namespace_error (AE_INFO, s, e));
+#define ACPI_ERROR_METHOD(s, n, p, e)       ACPI_DO_ONCE(acpi_ut_method_error (AE_INFO, s, n, p, e));
+#else
 #define ACPI_ERROR_NAMESPACE(s, e)          acpi_ut_namespace_error (AE_INFO, s, e);
 #define ACPI_ERROR_METHOD(s, n, p, e)       acpi_ut_method_error (AE_INFO, s, n, p, e);
+#endif
 #define ACPI_WARN_PREDEFINED(plist)         acpi_ut_predefined_warning plist
 #define ACPI_INFO_PREDEFINED(plist)         acpi_ut_predefined_info plist
 #define ACPI_BIOS_ERROR_PREDEFINED(plist)   acpi_ut_predefined_bios_error plist
