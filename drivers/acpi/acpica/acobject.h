@@ -122,9 +122,10 @@ struct acpi_object_integer {
 	_type                           *pointer; \
 	u32                             length;
 
-struct acpi_object_string {	/* Null terminated, ASCII characters only */
-	ACPI_OBJECT_COMMON_HEADER ACPI_COMMON_BUFFER_INFO(char)	/* String in AML stream or allocated string */
-};
+typedef struct acpi_object_string {	/* Null terminated, ASCII characters only */
+	ACPI_OBJECT_COMMON_HEADER ACPI_COMMON_BUFFER_INFO(char)
+	    /* String in AML stream or allocated string */
+} acpi_object_string;
 
 struct acpi_object_buffer {
 	ACPI_OBJECT_COMMON_HEADER ACPI_COMMON_BUFFER_INFO(u8)	/* Buffer in AML stream or allocated buffer */
@@ -211,8 +212,8 @@ struct acpi_object_method {
 	union acpi_operand_object       *notify_list[2];    /* Handlers for system/device notifies */\
 	union acpi_operand_object       *handler;	/* Handler for Address space */
 
-struct acpi_object_notify_common {	/* COMMON NOTIFY for POWER, PROCESSOR, DEVICE, and THERMAL */
-ACPI_OBJECT_COMMON_HEADER ACPI_COMMON_NOTIFY_INFO};
+typedef struct acpi_object_notify_common {	/* COMMON NOTIFY for POWER, PROCESSOR, DEVICE, and THERMAL */
+ACPI_OBJECT_COMMON_HEADER ACPI_COMMON_NOTIFY_INFO} acpi_object_notify_common;
 
 struct acpi_object_device {
 	ACPI_OBJECT_COMMON_HEADER
@@ -258,9 +259,10 @@ ACPI_OBJECT_COMMON_HEADER ACPI_COMMON_NOTIFY_INFO};
 	u8                              access_length;	/* For serial regions/fields */
 
 
-struct acpi_object_field_common {	/* COMMON FIELD (for BUFFER, REGION, BANK, and INDEX fields) */
+typedef struct acpi_object_field_common {	/* COMMON FIELD (for BUFFER, REGION, BANK, and INDEX fields) */
 	ACPI_OBJECT_COMMON_HEADER ACPI_COMMON_FIELD_INFO union acpi_operand_object *region_obj;	/* Parent Operation Region object (REGION/BANK fields only) */
-};
+
+} acpi_object_field_common;
 
 struct acpi_object_region_field {
 	ACPI_OBJECT_COMMON_HEADER ACPI_COMMON_FIELD_INFO u16 resource_length;
