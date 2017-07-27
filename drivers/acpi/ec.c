@@ -157,7 +157,7 @@ static bool ec_no_wakeup __read_mostly;
 module_param(ec_no_wakeup, bool, 0644);
 MODULE_PARM_DESC(ec_no_wakeup, "Do not wake up from suspend-to-idle");
 
-static bool ec_detect_noirq_events __read_mostly;
+static bool ec_detect_noirq_events __read_mostly = true;
 module_param(ec_detect_noirq_events, bool, 0644);
 MODULE_PARM_DESC(ec_detect_noirq_events, "Enabling event detection during noirq stage");
 
