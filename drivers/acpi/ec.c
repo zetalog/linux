@@ -249,6 +249,11 @@ static bool acpi_ec_started(struct acpi_ec *ec)
 	       !test_bit(EC_FLAGS_STOPPED, &ec->flags);
 }
 
+static bool acpi_ec_no_sleep_events(void)
+{
+	return acpi_sleep_no_ec_events() && ec_freeze_events;
+}
+
 static bool acpi_ec_event_enabled(struct acpi_ec *ec)
 {
 	/*
@@ -260,14 +265,14 @@ static bool acpi_ec_event_enabled(struct acpi_ec *ec)
 		return false;
 	/*
 	 * However, disabling the event handling is experimental for late
-	 * stage (suspend), and is controlled by the boot parameter of
-	 * "ec_freeze_events":
+	 * stage (suspend), and is controlled by
+	 * "acpi_ec_no_sleep_events()":
 	 * 1. true:  The EC event handling is disabled before entering
 	 *           the noirq stage.
 	 * 2. false: The EC event handling is automatically disabled as
 	 *           soon as the EC driver is stopped.
 	 */
-	if (ec_freeze_events)
+	if (acpi_ec_no_sleep_events())
 		return acpi_ec_started(ec);
 	else
 		return test_bit(EC_FLAGS_STARTED, &ec->flags);
@@ -524,8 +529,8 @@ static bool acpi_ec_query_flushed(struct acpi_ec *ec)
 static void __acpi_ec_flush_event(struct acpi_ec *ec)
 {
 	/*
-	 * When ec_freeze_events is true, we need to flush events in
-	 * the proper position before entering the noirq stage.
+	 * When acpi_ec_no_sleep_events() is true, we need to flush events
+	 * in the proper position before entering the noirq stage.
 	 */
 	wait_event(ec->wait, acpi_ec_query_flushed(ec));
 	if (ec_query_wq)
@@ -948,7 +953,8 @@ static void acpi_ec_start(struct acpi_ec *ec, bool resuming)
 		if (!resuming) {
 			acpi_ec_submit_request(ec);
 			ec_dbg_ref(ec, "Increase driver");
-		}
+		} else if (!acpi_ec_no_sleep_events())
+			__acpi_ec_enable_event(ec);
 		ec_log_drv("EC started");
 	}
 	spin_unlock_irqrestore(&ec->lock, flags);
@@ -980,7 +986,7 @@ static void acpi_ec_stop(struct acpi_ec *ec, bool suspending)
 		if (!suspending) {
 			acpi_ec_complete_request(ec);
 			ec_dbg_ref(ec, "Decrease driver");
-		} else if (!ec_freeze_events)
+		} else if (!acpi_ec_no_sleep_events())
 			__acpi_ec_disable_event(ec);
 		clear_bit(EC_FLAGS_STARTED, &ec->flags);
 		clear_bit(EC_FLAGS_STOPPED, &ec->flags);
@@ -1910,7 +1916,7 @@ static int acpi_ec_suspend(struct device *dev)
 	struct acpi_ec *ec =
 		acpi_driver_data(to_acpi_device(dev));
 
-	if (acpi_sleep_no_ec_events() && ec_freeze_events)
+	if (acpi_ec_no_sleep_events())
 		acpi_ec_disable_event(ec);
 	return 0;
 }
@@ -1946,7 +1952,18 @@ static int acpi_ec_resume(struct device *dev)
 	struct acpi_ec *ec =
 		acpi_driver_data(to_acpi_device(dev));
 
-	acpi_ec_enable_event(ec);
+	if (acpi_ec_no_sleep_events())
+		acpi_ec_enable_event(ec);
+	else {
+		/*
+		 * Though whether there is an event pending has been
+		 * checked in acpi_ec_unblock_transactions() when
+		 * acpi_ec_no_sleep_events() is false, check it one more
+		 * time after noirq stage to detect events occurred after
+		 * acpi_ec_unblock_transactions().
+		 */
+		advance_transaction(ec);
+	}
 	return 0;
 }
 #endif
