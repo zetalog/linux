@@ -97,6 +97,14 @@ acpi_status acpi_update_all_gpes(void)
 unlock_and_exit:
 	(void)acpi_ut_release_mutex(ACPI_MTX_EVENTS);
 
+	/*
+	 * Poll GPEs to handle already triggered events.
+	 * It is not sufficient to trigger edge-triggered GPE with specific
+	 * GPE chips, software need to poll once after enabling.
+	 */
+	if (acpi_gbl_all_gpes_initialized) {
+		acpi_ev_gpe_detect(acpi_gbl_gpe_xrupt_list_head);
+	}
 	return_ACPI_STATUS(status);
 }
 
@@ -135,6 +143,21 @@ acpi_status acpi_enable_gpe(acpi_handle gpe_device, u32 gpe_number)
 		if (ACPI_GPE_DISPATCH_TYPE(gpe_event_info->flags) !=
 		    ACPI_GPE_DISPATCH_NONE) {
 			status = acpi_ev_add_gpe_reference(gpe_event_info);
+			if (ACPI_SUCCESS(status) &&
+			    gpe_event_info->runtime_count == 1 &&
+			    acpi_gbl_all_gpes_initialized) {
+				/*
+				 * Poll GPEs to handle already triggered events.
+				 * It is not sufficient to trigger edge-triggered GPE with
+				 * specific GPE chips, software need to poll once after
+				 * enabling.
+				 */
+				acpi_os_release_lock(acpi_gbl_gpe_lock, flags);
+				(void)acpi_ev_detect_gpe(gpe_device,
+							 gpe_event_info,
+							 gpe_number);
+				flags = acpi_os_acquire_lock(acpi_gbl_gpe_lock);
+			}
 		} else {
 			status = AE_NO_HANDLER;
 		}

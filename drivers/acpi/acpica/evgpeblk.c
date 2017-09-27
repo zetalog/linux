@@ -440,7 +440,6 @@ acpi_ev_initialize_gpe_block(struct acpi_gpe_xrupt_info *gpe_xrupt_info,
 			     void *ignored)
 {
 	acpi_status status;
-	acpi_event_status event_status;
 	struct acpi_gpe_event_info *gpe_event_info;
 	u32 gpe_enabled_count;
 	u32 gpe_index;
@@ -484,10 +483,6 @@ acpi_ev_initialize_gpe_block(struct acpi_gpe_xrupt_info *gpe_xrupt_info,
 				continue;
 			}
 
-			event_status = 0;
-			(void)acpi_hw_get_gpe_status(gpe_event_info,
-						     &event_status);
-
 			status = acpi_ev_add_gpe_reference(gpe_event_info);
 			if (ACPI_FAILURE(status)) {
 				ACPI_EXCEPTION((AE_INFO, status,
@@ -497,15 +492,6 @@ acpi_ev_initialize_gpe_block(struct acpi_gpe_xrupt_info *gpe_xrupt_info,
 			}
 
 			gpe_event_info->flags |= ACPI_GPE_AUTO_ENABLED;
-
-			if (event_status & ACPI_EVENT_FLAG_STATUS_SET) {
-				ACPI_INFO(("GPE 0x%02X active on init",
-					   gpe_number));
-				(void)acpi_ev_gpe_dispatch(gpe_block->node,
-							   gpe_event_info,
-							   gpe_number);
-			}
-
 			gpe_enabled_count++;
 		}
 	}

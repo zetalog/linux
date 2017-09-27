@@ -1006,6 +1006,19 @@ acpi_remove_gpe_handler(acpi_handle gpe_device,
 	     (ACPI_GPE_DISPATCH_TYPE(handler->original_flags) ==
 	      ACPI_GPE_DISPATCH_NOTIFY)) && handler->originally_enabled) {
 		(void)acpi_ev_add_gpe_reference(gpe_event_info);
+		if (gpe_event_info->runtime_count == 1 &&
+		    acpi_gbl_all_gpes_initialized) {
+			/*
+			 * Poll GPEs to handle already triggered events.
+			 * It is not sufficient to trigger edge-triggered GPE with
+			 * specific GPE chips, software need to poll once after
+			 * enabling.
+			 */
+			acpi_os_release_lock(acpi_gbl_gpe_lock, flags);
+			(void)acpi_ev_detect_gpe(gpe_device, gpe_event_info,
+						 gpe_number);
+			flags = acpi_os_acquire_lock(acpi_gbl_gpe_lock);
+		}
 	}
 
 	acpi_os_release_lock(acpi_gbl_gpe_lock, flags);
