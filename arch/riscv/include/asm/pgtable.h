@@ -324,6 +324,15 @@ static inline int pte_same(pte_t pte_a, pte_t pte_b)
 static inline void set_pte(pte_t *ptep, pte_t pteval)
 {
 	*ptep = pteval;
+
+#if 0
+	/*
+	 * Only if the new pte is valid and kernel, otherwise TLB maintenance
+	 * or update_mmu_cache() have the necessary barriers.
+	 */
+	if (pte_valid_not_user(pte))
+		local_flush_icache_all();
+#endif
 }
 
 void flush_icache_pte(pte_t pte);
