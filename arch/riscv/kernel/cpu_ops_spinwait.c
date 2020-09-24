@@ -32,6 +32,8 @@ static int spinwait_cpu_start(unsigned int cpuid, struct task_struct *tidle)
 	 * can continue the boot process.
 	 */
 	cpu_update_secondary_bootdata(cpuid, tidle);
+	/* Make sure sp/tp is committed */
+	smp_wmb();
 
 	return 0;
 }

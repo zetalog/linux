@@ -302,6 +302,8 @@ clear_bss_done:
 	 */
 .Lwait_for_cpu_up:
 	/* FIXME: We should WFI to save some energy here. */
+	/* Make sure sp/tp is updated */
+	fence r, r
 	REG_L sp, (a1)
 	REG_L tp, (a2)
 	beqz sp, .Lwait_for_cpu_up
