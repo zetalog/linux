@@ -67,6 +67,14 @@ config IOMMU_IO_PGTABLE_ARMV7S_SELFTEST
 
 	  If unsure, say N here.
 
+config IOMMU_IO_PGTABLE_RISCV
+	bool "RISC-V SV39/SV48 Descriptor Format"
+	select IOMMU_IO_PGTABLE
+	depends on RISCV || (COMPILE_TEST && !GENERIC_ATOMIC64)
+	help
+	  Enable support for the RISC-V SV39/SV48 style descriptor page
+	  table format.
+
 endmenu
 
 config IOMMU_DEBUGFS
@@ -380,9 +388,10 @@ config SPAPR_TCE_IOMMU
 # ARM IOMMU support
 config ARM_SMMU
 	tristate "ARM Ltd. System MMU (SMMU) Support"
-	depends on (ARM64 || ARM || (COMPILE_TEST && !GENERIC_ATOMIC64)) && MMU
+	depends on (RISCV || ARM64 || ARM || (COMPILE_TEST && !GENERIC_ATOMIC64)) && MMU
 	select IOMMU_API
-	select IOMMU_IO_PGTABLE_LPAE
+	select IOMMU_IO_PGTABLE_LPAE if !RISCV
+	select IOMMU_IO_PGTABLE_RISCV if RISCV
 	select ARM_DMA_USE_IOMMU if ARM
 	help
 	  Support for implementations of the ARM System MMU architecture
