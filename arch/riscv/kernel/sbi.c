@@ -195,6 +195,16 @@ static void __sbi_disable_clk(unsigned long clkid)
 {
 	sbi_ecall(SBI_EXT_0_1_DISABLE_CLK, 0, clkid, 0, 0, 0, 0, 0);
 }
+
+static void __sbi_config_pin_mux(unsigned long pinid, unsigned long mux)
+{
+	sbi_ecall(SBI_EXT_0_1_CONFIG_PIN_MUX, 0, pinid, mux, 0, 0, 0, 0);
+}
+
+static void __sbi_config_pin_pad(unsigned long pinid, unsigned long cfg)
+{
+	sbi_ecall(SBI_EXT_0_1_CONFIG_PIN_PAD, 0, pinid, cfg, 0, 0, 0, 0);
+}
 #else
 static void __sbi_set_timer_v01(uint64_t stime_value)
 {
@@ -245,6 +255,18 @@ static void __sbi_enable_clk(unsigned long clkid)
 static void __sbi_disable_clk(unsigned long clkid)
 {
 	sbi_ecall(SBI_EXT_CLK, SBI_EXT_CLK_DISABLE, clkid, 0, 0, 0, 0, 0);
+}
+
+static void __sbi_config_pin_mux(unsigned long pinid, unsigned long mux)
+{
+	sbi_ecall(SBI_EXT_PIN, SBI_EXT_PIN_CONFIG_MUX,
+		  pinid, mux, 0, 0, 0, 0);
+}
+
+static void __sbi_config_pin_pad(unsigned long pinid, unsigned long cfg)
+{
+	sbi_ecall(SBI_EXT_PIN, SBI_EXT_PIN_CONFIG_PAD,
+		  pinid, cfg, 0, 0, 0, 0);
 }
 #endif /* CONFIG_RISCV_SBI_V01 */
 
@@ -597,6 +619,32 @@ void sbi_disable_clk(unsigned long clkid)
 	__sbi_disable_clk(clkid);
 }
 EXPORT_SYMBOL(sbi_disable_clk);
+
+/**
+ * sbi_config_pin_mux() - Configure the multiplexing of the pin
+ * @pinid: SBI pinctrl framework pin ID.
+ * @mux: Multiplexing value
+ *
+ * Return: None
+ */
+void sbi_config_pin_mux(unsigned long pinid, unsigned long mux)
+{
+	__sbi_config_pin_mux(pinid, mux);
+}
+EXPORT_SYMBOL(sbi_config_pin_mux);
+
+/**
+ * sbi_config_pin_pad() - Configure the pad settings of the pin
+ * @pinid: SBI pinctrl framework pin ID.
+ * @mux: Pad configuration value
+ *
+ * Return: None
+ */
+void sbi_config_pin_pad(unsigned long pinid, unsigned long cfg)
+{
+	__sbi_config_pin_pad(pinid, cfg);
+}
+EXPORT_SYMBOL(sbi_config_pin_pad);
 
 /**
  * sbi_probe_extension() - Check if an SBI extension ID is supported or not.
