@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0
+
+menuconfig CLK_SBI
+	bool "RISC-V SBI clock framework support"
+	depends on RISCV || COMPILE_TEST
+	help
+	  Clock drivers for RISC-V SBI clock frameowrk compatible SoCs.
+
+if CLK_SBI
+
+endif

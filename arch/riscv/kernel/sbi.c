@@ -172,6 +172,29 @@ static void sbi_set_power_off(void)
 {
 	pm_power_off = sbi_shutdown;
 }
+
+static unsigned long __sbi_get_clk_freq(unsigned long clkid)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_0_1_GET_CLK_FREQ, 0, clkid, 0, 0, 0, 0, 0);
+	return ret.error;
+}
+
+static void __sbi_set_clk_freq(unsigned long clkid, unsigned long freq)
+{
+	sbi_ecall(SBI_EXT_0_1_SET_CLK_FREQ, 0, clkid, freq, 0, 0, 0, 0);
+}
+
+static void __sbi_enable_clk(unsigned long clkid)
+{
+	sbi_ecall(SBI_EXT_0_1_ENABLE_CLK, 0, clkid, 0, 0, 0, 0, 0);
+}
+
+static void __sbi_disable_clk(unsigned long clkid)
+{
+	sbi_ecall(SBI_EXT_0_1_DISABLE_CLK, 0, clkid, 0, 0, 0, 0, 0);
+}
 #else
 static void __sbi_set_timer_v01(uint64_t stime_value)
 {
@@ -198,6 +221,31 @@ static int __sbi_rfence_v01(int fid, const unsigned long *hart_mask,
 }
 
 static void sbi_set_power_off(void) {}
+
+static unsigned long __sbi_get_clk_freq(unsigned long clkid)
+{
+	struct sbiret ret;
+
+	ret = sbi_ecall(SBI_EXT_CLK, SBI_EXT_GET_CLK_FREQ, 0,
+			clkid, 0, 0, 0, 0, 0);
+	return ret.error;
+}
+
+static void __sbi_set_clk_freq(unsigned long clkid, unsigned long freq)
+{
+	sbi_ecall(SBI_EXT_CLK, SBI_EXT_SET_CLK_FREQ, 0,
+		  clkid, freq, 0, 0, 0, 0);
+}
+
+static void __sbi_enable_clk(unsigned long clkid)
+{
+	sbi_ecall(SBI_EXT_CLK, SBI_EXT_ENABLE_CLK, 0, clkid, 0, 0, 0, 0, 0);
+}
+
+static void __sbi_disable_clk(unsigned long clkid)
+{
+	sbi_ecall(SBI_EXT_CLK, SBI_EXT_DISABLE_CLK, 0, clkid, 0, 0, 0, 0, 0);
+}
 #endif /* CONFIG_RISCV_SBI_V01 */
 
 static void __sbi_set_timer_v02(uint64_t stime_value)
@@ -500,6 +548,55 @@ int sbi_remote_hfence_vvma_asid(const unsigned long *hart_mask,
 			    hart_mask, start, size, asid, 0);
 }
 EXPORT_SYMBOL(sbi_remote_hfence_vvma_asid);
+
+/**
+ * sbi_get_clk_freq() - Get the frequency of the clock
+ * @clkid: SBI clock framework clock ID.
+ *
+ * Return: Frequency in Hz
+ */
+unsigned long sbi_get_clk_freq(unsigned long clkid)
+{
+	return __sbi_get_clk_freq(clkid);
+}
+EXPORT_SYMBOL(sbi_get_clk_freq);
+
+/**
+ * sbi_set_clk_freq() - Set the frequency of the clock
+ * @clkid: SBI clock framework clock ID.
+ * @freq: Frequency in Hz
+ *
+ * Return: None
+ */
+void sbi_set_clk_freq(unsigned long clkid, unsigned long freq)
+{
+	__sbi_set_clk_freq(clkid, freq);
+}
+EXPORT_SYMBOL(sbi_set_clk_freq);
+
+/**
+ * sbi_enable_clk() - Enable the clock gate
+ * @clkid: SBI clock framework clock ID.
+ *
+ * Return: None
+ */
+void sbi_enable_clk(unsigned long clkid)
+{
+	__sbi_enable_clk(clkid);
+}
+EXPORT_SYMBOL(sbi_enable_clk);
+
+/**
+ * sbi_disable_clk() - Disable the clock gate
+ * @clkid: SBI clock framework clock ID.
+ *
+ * Return: None
+ */
+void sbi_disable_clk(unsigned long clkid)
+{
+	__sbi_disable_clk(clkid);
+}
+EXPORT_SYMBOL(sbi_disable_clk);
 
 /**
  * sbi_probe_extension() - Check if an SBI extension ID is supported or not.

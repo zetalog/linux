@@ -21,12 +21,17 @@ enum sbi_ext_id {
 	SBI_EXT_0_1_REMOTE_SFENCE_VMA = 0x6,
 	SBI_EXT_0_1_REMOTE_SFENCE_VMA_ASID = 0x7,
 	SBI_EXT_0_1_SHUTDOWN = 0x8,
+	SBI_EXT_0_1_GET_CLK_FREQ = 0x40,
+	SBI_EXT_0_1_SET_CLK_FREQ = 0x41,
+	SBI_EXT_0_1_ENABLE_CLK = 0x42,
+	SBI_EXT_0_1_DISABLE_CLK = 0x43,
 #endif
 	SBI_EXT_BASE = 0x10,
 	SBI_EXT_TIME = 0x54494D45,
 	SBI_EXT_IPI = 0x735049,
 	SBI_EXT_RFENCE = 0x52464E43,
 	SBI_EXT_HSM = 0x48534D,
+	SBI_EXT_CLK = 0x434C4B,
 };
 
 enum sbi_ext_base_fid {
@@ -70,6 +75,12 @@ enum sbi_hsm_hart_status {
 	SBI_HSM_HART_STATUS_STOP_PENDING,
 };
 
+enum sbi_ext_clk_fid {
+	SBI_EXT_CLK_GET_FREQUENCY = 0,
+	SBI_EXT_CLK_ENABLE,
+	SBI_EXT_CLK_DISABLE,
+};
+
 #define SBI_SPEC_VERSION_DEFAULT	0x1
 #define SBI_SPEC_VERSION_MAJOR_SHIFT	24
 #define SBI_SPEC_VERSION_MAJOR_MASK	0x7f
@@ -101,6 +112,10 @@ void sbi_set_timer(uint64_t stime_value);
 void sbi_shutdown(void);
 void sbi_clear_ipi(void);
 int sbi_send_ipi(const unsigned long *hart_mask);
+unsigned long sbi_get_clk_freq(unsigned long clkid);
+void sbi_set_clk_freq(unsigned long clkid, unsigned long freq);
+void sbi_enable_clk(unsigned long clkid);
+void sbi_disable_clk(unsigned long clkid);
 int sbi_remote_fence_i(const unsigned long *hart_mask);
 int sbi_remote_sfence_vma(const unsigned long *hart_mask,
 			   unsigned long start,
