@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0
+
+menuconfig PINCTRL_SBI
+	tristate "RISC-V SBI based pinctrl driver"
+	depends on RISCV || COMPILE_TEST
+	depends on OF
+	select GENERIC_PINCTRL_GROUPS
+	select GENERIC_PINMUX_FUNCTIONS
+	select GENERIC_PINCONF
+	help
+	  This selects the device tree based RISC-V SBI pinctrl driver.
+
+if PINCTRL_SBI
+
+endif

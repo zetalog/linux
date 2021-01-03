@@ -25,6 +25,8 @@ enum sbi_ext_id {
 	SBI_EXT_0_1_SET_CLK_FREQ = 0x41,
 	SBI_EXT_0_1_ENABLE_CLK = 0x42,
 	SBI_EXT_0_1_DISABLE_CLK = 0x43,
+	SBI_EXT_0_1_CONFIG_PIN_MUX = 0x44,
+	SBI_EXT_0_1_CONFIG_PIN_PAD = 0x45,
 #endif
 	SBI_EXT_BASE = 0x10,
 	SBI_EXT_TIME = 0x54494D45,
@@ -32,6 +34,7 @@ enum sbi_ext_id {
 	SBI_EXT_RFENCE = 0x52464E43,
 	SBI_EXT_HSM = 0x48534D,
 	SBI_EXT_CLK = 0x434C4B,
+	SBI_EXT_PIN = 0x50495D,
 };
 
 enum sbi_ext_base_fid {
@@ -82,6 +85,11 @@ enum sbi_ext_clk_fid {
 	SBI_EXT_CLK_DISABLE,
 };
 
+enum sbi_ext_pin_fid {
+	SBI_EXT_PIN_CONFIG_MUX = 0,
+	SBI_EXT_PIN_CONFIG_PAD,
+};
+
 #define SBI_SPEC_VERSION_DEFAULT	0x1
 #define SBI_SPEC_VERSION_MAJOR_SHIFT	24
 #define SBI_SPEC_VERSION_MAJOR_MASK	0x7f
@@ -120,6 +128,8 @@ unsigned long sbi_get_clk_freq(unsigned long clkid);
 void sbi_set_clk_freq(unsigned long clkid, unsigned long freq);
 void sbi_enable_clk(unsigned long clkid);
 void sbi_disable_clk(unsigned long clkid);
+void sbi_config_pin_mux(unsigned long pinid, unsigned long mux);
+void sbi_config_pin_pad(unsigned long pinid, unsigned long cfg);
 int sbi_remote_fence_i(const unsigned long *hart_mask);
 int sbi_remote_sfence_vma(const unsigned long *hart_mask,
 			   unsigned long start,
