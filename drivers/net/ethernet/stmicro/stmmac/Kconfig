@@ -209,6 +209,14 @@ config DWMAC_IMX8
 	  device driver. This driver is used for i.MX8 series like
 	  iMX8MP/iMX8DXL GMAC ethernet controller.
 
+config DWMAC_DUOWEN
+	tristate "SmarCo DUOWEN DWMAC support"
+	depends on OF
+	help
+	  Support for SmarCo XGMAC/XPCS ethernet controller.
+
+	  This selects the SmarCo DUOWEN platform glue layer support.
+
 endif
 
 config DWMAC_INTEL
