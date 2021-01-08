@@ -9,6 +9,8 @@
 
 #include <linux/types.h>
 
+#define SBI_PINCTRL_DUOWEN	0
+
 #ifdef CONFIG_PINCTRL_SBI
 #define SBI_PIN_INIT(pin)	\
 [sbi_##pin] = {			\
