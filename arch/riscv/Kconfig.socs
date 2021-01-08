@@ -19,6 +19,32 @@ config SOC_SIFIVE
 	help
 	  This enables support for SiFive SoC platform hardware.
 
+config SOC_SMARCO_DUOWEN
+	bool "SmarCo DUOWEN SoCs"
+
+if SOC_SMARCO_DUOWEN
+
+choice
+	prompt "Platform PLL type"
+	default DUOWEN_PLL_REAL
+
+config DUOWEN_PLL_REAL
+	bool "Real"
+
+config DUOWEN_PLL_FAKE
+	bool "Fake"
+
+endchoice
+
+config DUOWEN_SBI_DUAL
+	bool "Enable dual socket SBI support"
+	help
+	  Enable this only if the SBI bootloader contains the DUOWEN dual
+	  socket support.
+	  If unsure, say 'N'.
+
+endif
+
 config SOC_VIRT
 	bool "QEMU Virt Machine"
 	select CLINT_TIMER if RISCV_M_MODE

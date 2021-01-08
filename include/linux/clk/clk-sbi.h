@@ -10,6 +10,8 @@
 #include <linux/types.h>
 #include <linux/clk-provider.h>
 
+#define SBI_CLK_DUOWEN		0
+
 #ifdef CONFIG_CLK_SBI
 #define SBI_CLK_INIT(clk)	\
 [sbi_##clk] = {			\

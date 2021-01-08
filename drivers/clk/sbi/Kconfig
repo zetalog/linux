@@ -8,4 +8,11 @@ menuconfig CLK_SBI
 
 if CLK_SBI
 
+config CLK_SBI_DUOWEN
+	bool "SmarCo DUOWEN SBI clock (CRCNTL) support"
+	select SOC_SMARCO_DUOWEN
+	help
+	  Supports the Clock and Reset control (CRCNTL) IP block found in
+	  DUOWEN platform.
+
 endif
