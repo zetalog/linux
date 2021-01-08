@@ -12,4 +12,11 @@ menuconfig PINCTRL_SBI
 
 if PINCTRL_SBI
 
+config PINCTRL_SBI_DUOWEN
+	bool "SmarCo DUOWEN SBI pinctrl (TLMM) support"
+	select SOC_SMARCO_DUOWEN
+	help
+	  Supports the Top Level Multiplexer Module (TLMM) IP block found
+	  in DUOWEN platform.
+
 endif
