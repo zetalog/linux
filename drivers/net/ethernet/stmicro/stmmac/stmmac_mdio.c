@@ -412,7 +412,8 @@ int stmmac_mdio_register(struct net_device *ndev)
 	if (priv->plat->has_xgmac)
 		stmmac_xgmac2_mdio_read(new_bus, 0, MII_ADDR_C45);
 
-	if (priv->plat->phy_node || mdio_node)
+	if (!mdio_bus_data->probe_phy &&
+	    (priv->plat->phy_node || mdio_node))
 		goto bus_register_done;
 
 	found = 0;

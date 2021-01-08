@@ -227,6 +227,14 @@ config DWMAC_VISCONTI
 	help
 	  Support for ethernet controller on Visconti SoCs.
 
+config DWMAC_DUOWEN
+	tristate "SmarCo DUOWEN DWMAC support"
+	depends on OF
+	help
+	  Support for SmarCo XGMAC/XPCS ethernet controller.
+
+	  This selects the SmarCo DUOWEN platform glue layer support.
+
 endif
 
 config DWMAC_INTEL
