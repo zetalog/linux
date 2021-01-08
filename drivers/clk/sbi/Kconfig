@@ -8,4 +8,26 @@ menuconfig CLK_SBI
 
 if CLK_SBI
 
+config CLK_SBI_DUOWEN
+	bool "SmarCo DUOWEN SBI clock support"
+	help
+	  Supports the Clock and Reset control (CRCNTL) IP block found in
+	  DUOWEN platform.
+
+if CLK_SBI_DUOWEN
+
+choice
+	prompt "Platform type"
+	default DUOWEN_ASIC
+
+config DUOWEN_ASIC
+	bool "ASIC"
+
+config DUOWEN_ZEBU
+	bool "ZeBu"
+
+endchoice
+
+endif
+
 endif
