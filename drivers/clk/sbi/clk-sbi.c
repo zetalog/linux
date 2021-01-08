@@ -310,6 +310,7 @@ err_exit:
 }
 
 static const struct of_device_id sbi_clock_of_match[] = {
+	{ .compatible = "smarco,duowen-crcntl", .data = SBI_CLK_DUOWEN },
 	{}
 };
 MODULE_DEVICE_TABLE(of, sbi_clock_of_match);
