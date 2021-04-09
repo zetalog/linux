@@ -452,12 +452,13 @@ int dw_pcie_wait_for_link(struct dw_pcie *pci)
 	int retries;
 
 	/* Check if the link is up or not */
-	for (retries = 0; retries < LINK_WAIT_MAX_RETRIES; retries++) {
+	/* minor change to reduce time consumption in ZEBU */
+	for (retries = 0; retries < 65536; retries++) {
 		if (dw_pcie_link_up(pci)) {
 			dev_info(pci->dev, "Link up\n");
 			return 0;
 		}
-		usleep_range(LINK_WAIT_USLEEP_MIN, LINK_WAIT_USLEEP_MAX);
+		//usleep_range(LINK_WAIT_USLEEP_MIN, LINK_WAIT_USLEEP_MAX);
 	}
 
 	dev_info(pci->dev, "Phy link never came up\n");
@@ -584,6 +585,9 @@ void dw_pcie_setup(struct dw_pcie *pci)
 	case 8:
 		val |= PORT_LINK_MODE_8_LANES;
 		break;
+	case 16:
+		val |= PORT_LINK_MODE_16_LANES;
+		break;
 	default:
 		dev_err(pci->dev, "num-lanes %u: invalid value\n", lanes);
 		return;
@@ -606,6 +610,8 @@ void dw_pcie_setup(struct dw_pcie *pci)
 	case 8:
 		val |= PORT_LOGIC_LINK_WIDTH_8_LANES;
 		break;
+	case 16:
+		val |= PORT_LOGIC_LINK_WIDTH_16_LANES;
 	}
 	dw_pcie_writel_dbi(pci, PCIE_LINK_WIDTH_SPEED_CONTROL, val);
 

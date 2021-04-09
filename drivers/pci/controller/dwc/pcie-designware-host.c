@@ -522,7 +522,7 @@ static int dw_pcie_access_other_conf(struct pcie_port *pp, struct pci_bus *bus,
 {
 	int ret, type;
 	u32 busdev, cfg_size;
-	u64 cpu_addr;
+	u64 cpu_addr, ctrl_base;
 	void __iomem *va_cfg_base;
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
 
@@ -541,8 +541,9 @@ static int dw_pcie_access_other_conf(struct pcie_port *pp, struct pci_bus *bus,
 		va_cfg_base = pp->va_cfg1_base;
 	}
 
+	ctrl_base = pci->ctrl_base;
 	dw_pcie_prog_outbound_atu(pci, PCIE_ATU_REGION_INDEX1,
-				  type, cpu_addr,
+				  type, cpu_addr - ctrl_base,
 				  busdev, cfg_size);
 	if (write)
 		ret = dw_pcie_write(va_cfg_base + where, size, *val);
@@ -636,6 +637,7 @@ void dw_pcie_setup_rc(struct pcie_port *pp)
 {
 	u32 val, ctrl, num_ctrls;
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
+	u64 ctrl_base = pci->ctrl_base;
 
 	/*
 	 * Enable DBI read-only registers for writing/updating configuration.
@@ -690,11 +692,11 @@ void dw_pcie_setup_rc(struct pcie_port *pp)
 	 */
 	if (!pp->ops->rd_other_conf) {
 		dw_pcie_prog_outbound_atu(pci, PCIE_ATU_REGION_INDEX0,
-					  PCIE_ATU_TYPE_MEM, pp->mem_base,
+					  PCIE_ATU_TYPE_MEM, pp->mem_base - ctrl_base,
 					  pp->mem_bus_addr, pp->mem_size);
 		if (pci->num_viewport > 2)
 			dw_pcie_prog_outbound_atu(pci, PCIE_ATU_REGION_INDEX2,
-						  PCIE_ATU_TYPE_IO, pp->io_base,
+						  PCIE_ATU_TYPE_IO, pp->io_base - ctrl_base,
 						  pp->io_bus_addr, pp->io_size);
 	}
 
@@ -703,9 +705,13 @@ void dw_pcie_setup_rc(struct pcie_port *pp)
 	/* Program correct class for RC */
 	dw_pcie_wr_own_conf(pp, PCI_CLASS_DEVICE, 2, PCI_CLASS_BRIDGE_PCI);
 
-	dw_pcie_rd_own_conf(pp, PCIE_LINK_WIDTH_SPEED_CONTROL, 4, &val);
-	val |= PORT_LOGIC_SPEED_CHANGE;
-	dw_pcie_wr_own_conf(pp, PCIE_LINK_WIDTH_SPEED_CONTROL, 4, val);
+	/*
+	 *  Remove this setting temporarily to make virtual NVME SSD work normally.
+	 *  it seems bug exists in this developing virtual device
+	 */
+	//dw_pcie_rd_own_conf(pp, PCIE_LINK_WIDTH_SPEED_CONTROL, 4, &val);
+	//val |= PORT_LOGIC_SPEED_CHANGE;
+	//dw_pcie_wr_own_conf(pp, PCIE_LINK_WIDTH_SPEED_CONTROL, 4, val);
 
 	dw_pcie_dbi_ro_wr_dis(pci);
 }

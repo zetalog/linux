@@ -42,6 +42,7 @@
 #define PORT_LINK_MODE_2_LANES		PORT_LINK_MODE(0x3)
 #define PORT_LINK_MODE_4_LANES		PORT_LINK_MODE(0x7)
 #define PORT_LINK_MODE_8_LANES		PORT_LINK_MODE(0xf)
+#define PORT_LINK_MODE_16_LANES	PORT_LINK_MODE(0x1f)
 
 #define PCIE_PORT_DEBUG0		0x728
 #define PORT_LOGIC_LTSSM_STATE_MASK	0x1f
@@ -59,6 +60,7 @@
 #define PORT_LOGIC_LINK_WIDTH_2_LANES	PORT_LOGIC_LINK_WIDTH(0x2)
 #define PORT_LOGIC_LINK_WIDTH_4_LANES	PORT_LOGIC_LINK_WIDTH(0x4)
 #define PORT_LOGIC_LINK_WIDTH_8_LANES	PORT_LOGIC_LINK_WIDTH(0x8)
+#define PORT_LOGIC_LINK_WIDTH_16_LANES	PORT_LOGIC_LINK_WIDTH(0x10)
 
 #define PCIE_MSI_ADDR_LO		0x820
 #define PCIE_MSI_ADDR_HI		0x824
@@ -254,6 +256,7 @@ struct dw_pcie_ops {
 
 struct dw_pcie {
 	struct device		*dev;
+	u64			ctrl_base;
 	void __iomem		*dbi_base;
 	void __iomem		*dbi_base2;
 	/* Used when iatu_unroll_enabled is true */
