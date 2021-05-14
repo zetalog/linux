@@ -328,4 +328,12 @@ config PCIE_FU740
 	  Say Y here if you want PCIe controller support for the SiFive
 	  FU740.
 
+config PCI_DUOWEN
+	bool "SmarCo Duowen PCIe controller"
+	depends on PCI_MSI_IRQ_DOMAIN
+	depends on OF
+	select PCIE_DW_HOST
+	help
+          Support SmarCo Duowen PCIe subsystem
+
 endmenu
