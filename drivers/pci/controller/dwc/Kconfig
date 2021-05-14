@@ -318,4 +318,11 @@ config PCIE_AL
 	  required only for DT-based platforms. ACPI platforms with the
 	  Annapurna Labs PCIe controller don't need to enable this.
 
+config PCI_DUOWEN
+	bool "SmarCo Duowen PCIe controller"
+	depends on PCI_MSI_IRQ_DOMAIN
+	depends on OF
+	select PCIE_DW_HOST
+	help
+          Support SmarCo Duowen PCIe subsystem
 endmenu

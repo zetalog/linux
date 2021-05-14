@@ -337,7 +337,7 @@ int dw_pcie_host_init(struct pcie_port *pp)
 		pci->link_gen = of_pci_get_max_link_speed(np);
 
 	if (pci_msi_enabled()) {
-		pp->has_msi_ctrl = !(pp->ops->msi_host_init ||
+		pp->has_msi_ctrl = !(pp->ops && pp->ops->msi_host_init ||
 				     of_property_read_bool(np, "msi-parent") ||
 				     of_property_read_bool(np, "msi-map"));
 
@@ -348,7 +348,7 @@ int dw_pcie_host_init(struct pcie_port *pp)
 			return -EINVAL;
 		}
 
-		if (pp->ops->msi_host_init) {
+		if (pp->ops && pp->ops->msi_host_init) {
 			ret = pp->ops->msi_host_init(pp);
 			if (ret < 0)
 				return ret;
@@ -393,7 +393,7 @@ int dw_pcie_host_init(struct pcie_port *pp)
 	bridge->ops = &dw_pcie_ops;
 	bridge->child_ops = &dw_child_pcie_ops;
 
-	if (pp->ops->host_init) {
+	if (pp->ops && pp->ops->host_init) {
 		ret = pp->ops->host_init(pp);
 		if (ret)
 			goto err_free_msi;

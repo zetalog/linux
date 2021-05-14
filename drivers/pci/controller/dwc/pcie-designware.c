@@ -741,6 +741,9 @@ void dw_pcie_setup(struct dw_pcie *pci)
 	case 8:
 		val |= PORT_LINK_MODE_8_LANES;
 		break;
+	case 16:
+		val |= PORT_LINK_MODE_16_LANES;
+		break;
 	default:
 		dev_err(pci->dev, "num-lanes %u: invalid value\n", pci->num_lanes);
 		return;
@@ -762,6 +765,9 @@ void dw_pcie_setup(struct dw_pcie *pci)
 		break;
 	case 8:
 		val |= PORT_LOGIC_LINK_WIDTH_8_LANES;
+		break;
+	case 16:
+		val |= PORT_LOGIC_LINK_WIDTH_16_LANES;
 		break;
 	}
 	dw_pcie_writel_dbi(pci, PCIE_LINK_WIDTH_SPEED_CONTROL, val);
