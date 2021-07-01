@@ -36,6 +36,13 @@ config DUOWEN_PLL_FAKE
 
 endchoice
 
+config DUOWEN_SBI_DUAL
+	bool "Enable dual socket SBI support"
+	help
+	  Enable this only if the SBI bootloader contains the DUOWEN dual
+	  socket support.
+	  If unsure, say 'N'.
+
 endif
 
 config SOC_VIRT
