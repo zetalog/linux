@@ -334,8 +334,10 @@ static int __init plic_init(struct device_node *node,
 		}
 
 		/* Find parent domain and register chained handler */
-		if (!plic_parent_irq && irq_find_host(parent.np)) {
-			plic_parent_irq = irq_of_parse_and_map(node, i);
+		if (irq_find_host(parent.np)) {
+			if (!plic_parent_irq)
+				plic_parent_irq = irq_of_parse_and_map(node,
+								       i);
 			if (plic_parent_irq)
 				irq_set_chained_handler(plic_parent_irq,
 							plic_handle_irq);
