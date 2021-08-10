@@ -150,6 +150,7 @@ static int __init clint_timer_init_dt(struct device_node *np)
 	u32 i, nr_irqs;
 	void __iomem *base;
 	struct of_phandle_args oirq;
+	u32 ipi_off, cmp_off, val_off;
 
 	/*
 	 * Ensure that CLINT device interrupts are either RV_IRQ_TIMER or
@@ -189,9 +190,19 @@ static int __init clint_timer_init_dt(struct device_node *np)
 		return -ENODEV;
 	}
 
-	clint_ipi_base = base + CLINT_IPI_OFF;
-	clint_timer_cmp = base + CLINT_TIMER_CMP_OFF;
-	clint_timer_val = base + CLINT_TIMER_VAL_OFF;
+	if (of_property_read_u32(np, "smarco,clint-ipi-off",
+				 &cmp_off))
+		ipi_off = CLINT_IPI_OFF;
+	if (of_property_read_u32(np, "smarco,clint-cmp-off",
+				 &cmp_off))
+		cmp_off = CLINT_TIMER_CMP_OFF;
+	if (of_property_read_u32(np, "smarco,clint-val-off",
+				 &val_off))
+		val_off = CLINT_TIMER_VAL_OFF;
+
+	clint_ipi_base = base + ipi_off;
+	clint_timer_cmp = base + cmp_off;
+	clint_timer_val = base + val_off;
 	clint_timer_freq = riscv_timebase;
 
 #ifdef CONFIG_RISCV_M_MODE
