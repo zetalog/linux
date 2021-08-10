@@ -64,6 +64,9 @@ struct plic_priv {
 	struct cpumask lmask;
 	struct irq_domain *irqdomain;
 	void __iomem *regs;
+	int irq_base;
+	int ctx_base;
+	int ctx_size;
 };
 
 struct plic_handler {
@@ -163,7 +166,8 @@ static void plic_irq_eoi(struct irq_data *d)
 {
 	struct plic_handler *handler = this_cpu_ptr(&plic_handlers);
 
-	writel(d->hwirq, handler->hart_base + CONTEXT_CLAIM);
+	writel(d->hwirq + handler->priv->irq_base,
+	       handler->hart_base + CONTEXT_CLAIM);
 }
 
 static struct irq_chip plic_chip = {
@@ -234,7 +238,7 @@ static void plic_handle_irq(struct irq_desc *desc)
 
 	while ((hwirq = readl(claim))) {
 		int err = generic_handle_domain_irq(handler->priv->irqdomain,
-						    hwirq);
+				hwirq - handler->priv->irq_base);
 		if (unlikely(err))
 			pr_warn_ratelimited("can't find mapping for hwirq %lu\n",
 					hwirq);
@@ -298,6 +302,33 @@ static int __init plic_init(struct device_node *node,
 	if (WARN_ON(!nr_contexts))
 		goto out_iounmap;
 
+	/*
+	 * NOTE: Enable Multiple PLIC-redistributor Quirks
+	 *
+	 * 1. smarco,plic-irq-base:
+	 * IRQs are globally numbered while PLIC only handles the local
+	 * IRQs. This offset indicates the difference betwwen the global
+	 * IRQ# and the local IRQ# (IRQ index within the PLIC).
+	 * 2. smarco,plic-ctx-base:
+	 * The enable_base based registers are aware of the global IRQ
+	 * contexts (local and remote CPUs) due to the irq-socket-share
+	 * design while the hart_base based registers are only aware of
+	 * the local IRQ contexts. This offset indicates the difference
+	 * between the local IRQ context ID and the global IRQ context ID
+	 * for the hart_base based registers.
+	 * 3. smarco,plic-ctx-size:
+	 * The context number of hart_base based registers are litmited.
+	 */
+	if (of_property_read_u32(node, "smarco,plic-irq-base",
+				 &priv->irq_base))
+		priv->irq_base = 0;
+	if (of_property_read_u32(node, "smarco,plic-ctx-base",
+				 &priv->ctx_base))
+		priv->ctx_base = 0;
+	if (of_property_read_u32(node, "smarco,plic-ctx-size",
+				 &priv->ctx_size))
+		priv->ctx_size = 0;
+
 	error = -ENOMEM;
 	priv->irqdomain = irq_domain_add_linear(node, nr_irqs + 1,
 			&plic_irqdomain_ops, priv);
@@ -333,6 +364,22 @@ static int __init plic_init(struct device_node *node,
 			continue;
 		}
 
+		/*
+		 * NOTE: Remote IRQ Redistribution
+		 *
+		 * The following sanity check implies that no remote IRQ
+		 * redistribution is supported by the driver. Since there
+		 * is no easy for this driver to record multiple
+		 * enable_base addresses for a single handler, it is safer
+		 * not to allow a remote handler to be configured.
+		 */
+		if (priv->ctx_size &&
+		    (i < priv->ctx_base ||
+		     i >= (priv->ctx_base + priv->ctx_size))) {
+			pr_warn("Invalid remote context %d\n", i);
+			continue;
+		}
+
 		/* Find parent domain and register chained handler */
 		if (irq_find_host(parent.np)) {
 			if (!plic_parent_irq)
@@ -358,7 +405,8 @@ static int __init plic_init(struct device_node *node,
 		cpumask_set_cpu(cpu, &priv->lmask);
 		handler->present = true;
 		handler->hart_base =
-			priv->regs + CONTEXT_BASE + i * CONTEXT_PER_HART;
+			priv->regs + CONTEXT_BASE +
+			(i - priv->ctx_base) * CONTEXT_PER_HART;
 		raw_spin_lock_init(&handler->enable_lock);
 		handler->enable_base =
 			priv->regs + ENABLE_BASE + i * ENABLE_PER_HART;
