@@ -10,6 +10,9 @@ config 64BIT
 config 32BIT
 	bool
 
+config ARCH_HAS_CLINT_SUBSTITUTE
+	bool
+
 config RISCV
 	def_bool y
 	select ARCH_CLOCKSOURCE_INIT
@@ -40,7 +43,7 @@ config RISCV
 	select ARCH_WANT_HUGE_PMD_SHARE if 64BIT
 	select BINFMT_FLAT_NO_DATA_START_OFFSET if !MMU
 	select CLONE_BACKWARDS
-	select CLINT_TIMER if !MMU
+	select CLINT_TIMER if !MMU && !ARCH_HAS_CLINT_SUBSTITUTE
 	select COMMON_CLK
 	select EDAC_SUPPORT
 	select GENERIC_ARCH_TOPOLOGY if SMP

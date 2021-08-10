@@ -634,6 +634,7 @@ config RISCV_TIMER
 config CLINT_TIMER
 	bool "CLINT Timer for the RISC-V platform" if COMPILE_TEST
 	depends on GENERIC_SCHED_CLOCK && RISCV
+	depends on !ARCH_HAS_CLINT_SUBSTITUTE
 	select TIMER_PROBE
 	select TIMER_OF
 	help
@@ -706,5 +707,15 @@ config MICROCHIP_PIT64B
 	  based system. It supports the oneshot, the periodic
 	  modes and high resolution. It is used as a clocksource
 	  and a clockevent.
+
+config SMARCO_RVTIMER
+	bool "RISC-V timer for SmarCo platforms" if COMPILE_TEST
+	depends on GENERIC_SCHED_CLOCK && RISCV
+	select ARCH_HAS_CLINT_SUBSTITUTE
+	select TIMER_PROBE
+	select TIMER_OF
+	help
+	  This option enables the RV-timer for SmarCo SoCs to replace
+	  CLINT on non-SMP environment.
 
 endmenu

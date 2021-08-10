@@ -36,6 +36,14 @@ config DUOWEN_PLL_FAKE
 
 endchoice
 
+config DUOWEN_IMC
+	bool "Enable IMC support"
+	select SMARCO_RVTIMER
+	depends on !SMP
+	help
+	  Enable this only if the kernel is to be run on top of the
+	  Internal Management Core (IMC).
+
 config DUOWEN_SBI_DUAL
 	bool "Enable dual socket SBI support"
 	help
